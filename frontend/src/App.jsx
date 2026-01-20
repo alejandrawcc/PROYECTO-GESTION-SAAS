@@ -16,9 +16,11 @@ import { ResetPassword } from './pages/ResetPassword';
 import { MainLayout } from './components/MainLayout';
 import Dashboard from './pages/Dashboard';
 import Usuarios from './pages/Usuarios';
-import Clientes from './pages/Clientes'; // Importado correctamente
+import Clientes from './pages/Clientes'; 
 import Perfil from './pages/Perfil'; 
 import Suscripcion from './pages/Suscripcion'; 
+import GestionProductos from './pages/GestionProductos';
+import PortalMicroempresa from './pages/PortalMicroempresa';
 
 import { getCurrentUser } from './services/auth';
 
@@ -91,7 +93,17 @@ function App() {
             </PrivateRoute>
           } />
 
-          {/* RUTA DE CLIENTES (Añadida aquí para la defensa) */}
+          <Route path="/gestion-productos" element={
+            <PrivateRoute requiredRoles={['super_admin', 'administrador']}>
+              <GestionProductos />
+            </PrivateRoute>
+          } />
+
+          <Route path="/portal/:microempresaId" element={
+            <PortalMicroempresa />
+          } />
+
+          {/* RUTA DE CLIENTES */}
           <Route path="/clientes" element={
             <PrivateRoute>
               <Clientes />

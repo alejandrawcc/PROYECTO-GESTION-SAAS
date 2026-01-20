@@ -41,6 +41,9 @@ export function MainLayout({ children }) {
       items.push({ label: 'Mi Plan / Pagos', icon: IconCreditCard, path: '/suscripcion' });
     }
 
+    if (['administrador', 'super_admin'].includes(user?.rol)) {
+      items.push({ label: 'Productos', icon: IconPackage, path: '/gestion-productos' });
+    }
     return items;
   };
 

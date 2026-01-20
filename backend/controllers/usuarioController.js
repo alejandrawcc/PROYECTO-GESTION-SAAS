@@ -35,8 +35,8 @@ const getUsuarios = async (req, res) => {
         let queryClientes = `
             SELECT 
                 c.id_cliente, 
-                c.nombre, 
-                c.razon_social, 
+                c.nombre_razon_social as nombre,  
+                NULL as razon_social, 
                 c.email, 
                 c.estado, 
                 m.nombre AS empresa_nombre 
