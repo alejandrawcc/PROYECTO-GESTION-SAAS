@@ -114,7 +114,7 @@ const PortalMicroempresa = () => {
         
         // Aquí implementarías la lógica del carrito
         notifications.show({
-            title: '✅ Producto agregado',
+            title: 'Producto agregado',
             message: `${cantidadCarrito}x ${productoSeleccionado.nombre} agregado al carrito`,
             color: 'green',
             icon: <IconShoppingCart size={20} />
@@ -127,7 +127,7 @@ const PortalMicroempresa = () => {
         if (!productoSeleccionado) return;
         
         notifications.show({
-            title: '🛒 Proceder a compra',
+            title: 'Proceder a compra',
             message: `Redirigiendo al proceso de compra de ${productoSeleccionado.nombre}`,
             color: 'blue',
             icon: <IconShoppingBag size={20} />

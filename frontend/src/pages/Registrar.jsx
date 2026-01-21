@@ -290,6 +290,7 @@ export function Registrar() {
                     label="Moneda"
                     placeholder="Selecciona la moneda"
                     data={[
+                      { value: 'BOB', label: 'BOB - Boliviano' },
                       { value: 'USD', label: 'USD - Dólar' },
                       { value: 'EUR', label: 'EUR - Euro' },
                       { value: 'GBP', label: 'GBP - Libra' },

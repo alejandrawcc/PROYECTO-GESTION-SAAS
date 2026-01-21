@@ -50,7 +50,7 @@ exports.registrar = async (req, res) => {
                             empresa.descripcion || null,
                             empresa.telefono,
                             empresa.email || email, // Email del administrador
-                            empresa.moneda || 'USD',
+                            empresa.moneda || 'BOB',
                             planIdFinal // Usar número en lugar de string
                         ]
                     );
@@ -69,7 +69,7 @@ exports.registrar = async (req, res) => {
                             empresa.descripcion || null,
                             empresa.telefono,
                             empresa.email || email, // Email del administrador
-                            empresa.moneda || 'USD',
+                            empresa.moneda || 'BOB',
                             planIdFinal // Usar número en lugar de string
                         ]
                     );

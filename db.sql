@@ -19,6 +19,21 @@
 CREATE DATABASE IF NOT EXISTS `gestion_microempresas` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
 USE `gestion_microempresas`;
 
+-- Volcando estructura para tabla gestion_microempresas.categoria_producto
+CREATE TABLE IF NOT EXISTS `categoria_producto` (
+  `id_categoria` int NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(100) NOT NULL,
+  `descripcion` text,
+  `microempresa_id` int DEFAULT NULL,
+  `estado` enum('activa','inactiva') DEFAULT 'activa',
+  `fecha_creacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_categoria`),
+  KEY `microempresa_id` (`microempresa_id`),
+  CONSTRAINT `categoria_producto_ibfk_1` FOREIGN KEY (`microempresa_id`) REFERENCES `microempresa` (`id_microempresa`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- La exportación de datos fue deseleccionada.
+
 -- Volcando estructura para tabla gestion_microempresas.cliente
 CREATE TABLE IF NOT EXISTS `cliente` (
   `id_cliente` int NOT NULL AUTO_INCREMENT,
@@ -32,10 +47,14 @@ CREATE TABLE IF NOT EXISTS `cliente` (
   `password` varchar(255) DEFAULT NULL,
   `origen` enum('publico','sistema') DEFAULT 'publico',
   `usuario_registro` int DEFAULT NULL,
+  `token_reset` varchar(255) DEFAULT NULL,
+  `token_expira` datetime DEFAULT NULL,
+  `ultimo_login` timestamp NULL DEFAULT NULL,
+  `activo` tinyint(1) DEFAULT '1',
   PRIMARY KEY (`id_cliente`),
   KEY `microempresa_id` (`microempresa_id`),
   CONSTRAINT `cliente_ibfk_1` FOREIGN KEY (`microempresa_id`) REFERENCES `microempresa` (`id_microempresa`)
-) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- La exportación de datos fue deseleccionada.
 
@@ -135,7 +154,25 @@ CREATE TABLE IF NOT EXISTS `microempresa` (
   KEY `aprobado_por` (`aprobado_por`),
   CONSTRAINT `microempresa_ibfk_1` FOREIGN KEY (`plan_id`) REFERENCES `plan_pago` (`id_plan`),
   CONSTRAINT `microempresa_ibfk_2` FOREIGN KEY (`aprobado_por`) REFERENCES `usuario` (`id_usuario`)
-) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- La exportación de datos fue deseleccionada.
+
+-- Volcando estructura para tabla gestion_microempresas.notificacion_stock
+CREATE TABLE IF NOT EXISTS `notificacion_stock` (
+  `id_notificacion` int NOT NULL AUTO_INCREMENT,
+  `producto_id` int DEFAULT NULL,
+  `microempresa_id` int DEFAULT NULL,
+  `tipo` enum('stock_bajo','agotado') DEFAULT 'stock_bajo',
+  `mensaje` text,
+  `leida` tinyint(1) DEFAULT '0',
+  `fecha_notificacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_notificacion`),
+  KEY `producto_id` (`producto_id`),
+  KEY `microempresa_id` (`microempresa_id`),
+  CONSTRAINT `notificacion_stock_ibfk_1` FOREIGN KEY (`producto_id`) REFERENCES `producto` (`id_producto`),
+  CONSTRAINT `notificacion_stock_ibfk_2` FOREIGN KEY (`microempresa_id`) REFERENCES `microempresa` (`id_microempresa`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- La exportación de datos fue deseleccionada.
 
@@ -189,10 +226,13 @@ CREATE TABLE IF NOT EXISTS `producto` (
   `estado` enum('discontinuado','stock') DEFAULT 'stock',
   `categoria` varchar(50) DEFAULT NULL,
   `microempresa_id` int DEFAULT NULL,
+  `visible_portal` tinyint(1) DEFAULT '1',
+  `fecha_actualizacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `imagen_url` varchar(500) DEFAULT NULL COMMENT 'URL de la imagen del producto',
   PRIMARY KEY (`id_producto`),
   KEY `microempresa_id` (`microempresa_id`),
   CONSTRAINT `producto_ibfk_1` FOREIGN KEY (`microempresa_id`) REFERENCES `microempresa` (`id_microempresa`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- La exportación de datos fue deseleccionada.
 
@@ -235,23 +275,23 @@ CREATE TABLE IF NOT EXISTS `usuario` (
   KEY `rol_id` (`rol_id`),
   CONSTRAINT `usuario_ibfk_1` FOREIGN KEY (`microempresa_id`) REFERENCES `microempresa` (`id_microempresa`),
   CONSTRAINT `usuario_ibfk_2` FOREIGN KEY (`rol_id`) REFERENCES `rol` (`id_rol`)
-) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- La exportación de datos fue deseleccionada.
 
--- Volcando estructura para tabla gestion_microempresas.visita_microempresa
-CREATE TABLE IF NOT EXISTS `visita_microempresa` (
+-- Volcando estructura para tabla gestion_microempresas.visita_cliente
+CREATE TABLE IF NOT EXISTS `visita_cliente` (
   `id_visita` int NOT NULL AUTO_INCREMENT,
   `cliente_id` int DEFAULT NULL,
   `microempresa_id` int DEFAULT NULL,
   `fecha_visita` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `tipo_visita` enum('exploracion','registro') DEFAULT 'exploracion',
+  `tipo` enum('exploracion','compra','consulta') DEFAULT 'exploracion',
   PRIMARY KEY (`id_visita`),
   KEY `cliente_id` (`cliente_id`),
   KEY `microempresa_id` (`microempresa_id`),
-  CONSTRAINT `visita_microempresa_ibfk_1` FOREIGN KEY (`cliente_id`) REFERENCES `cliente` (`id_cliente`),
-  CONSTRAINT `visita_microempresa_ibfk_2` FOREIGN KEY (`microempresa_id`) REFERENCES `microempresa` (`id_microempresa`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  CONSTRAINT `visita_cliente_ibfk_1` FOREIGN KEY (`cliente_id`) REFERENCES `cliente` (`id_cliente`),
+  CONSTRAINT `visita_cliente_ibfk_2` FOREIGN KEY (`microempresa_id`) REFERENCES `microempresa` (`id_microempresa`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- La exportación de datos fue deseleccionada.
 
