@@ -402,7 +402,7 @@ const PortalMicroempresa = () => {
                                         
                                         <Group justify="space-between" mt="auto">
                                             <Text fw={700} size="xl" c="green">
-                                                ${parseFloat(producto.precio).toFixed(2)}
+                                                Bs {parseFloat(producto.precio).toFixed(2)}
                                             </Text>
                                             <Badge 
                                                 color={producto.stock_actual > 0 ? 'green' : 'red'}
@@ -574,7 +574,7 @@ const PortalMicroempresa = () => {
                                 <Paper withBorder p="md" radius="md">
                                     <Text size="sm" c="dimmed">Precio</Text>
                                     <Text fw={700} size="xl" c="green">
-                                        ${parseFloat(productoSeleccionado.precio).toFixed(2)}
+                                        Bs {parseFloat(productoSeleccionado.precio).toFixed(2)}
                                     </Text>
                                 </Paper>
                             </Grid.Col>
@@ -614,7 +614,7 @@ const PortalMicroempresa = () => {
                                         <Paper withBorder p="md" radius="md">
                                             <Text size="sm" c="dimmed">Subtotal</Text>
                                             <Text fw={700} size="lg">
-                                                ${(productoSeleccionado.precio * cantidadCarrito).toFixed(2)}
+                                                Bs {(productoSeleccionado.precio * cantidadCarrito).toFixed(2)}
                                             </Text>
                                         </Paper>
                                     </Grid.Col>

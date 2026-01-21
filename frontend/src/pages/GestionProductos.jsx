@@ -20,6 +20,7 @@ import { getCurrentUser } from '../services/auth';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
+
 const GestionProductos = () => {
     const user = getCurrentUser();
     const isAdmin = ['administrador', 'super_admin'].includes(user?.rol);
@@ -32,6 +33,7 @@ const GestionProductos = () => {
     const [modalCategoriaOpen, setModalCategoriaOpen] = useState(false);
     const [notificaciones, setNotificaciones] = useState([]);
     const [activeTab, setActiveTab] = useState('productos');
+    const [isEditing, setIsEditing] = useState(false);
     
     // Estados para formularios
     const [nuevoProducto, setNuevoProducto] = useState({
@@ -127,39 +129,90 @@ const GestionProductos = () => {
     // Handlers
     const handleCrearProducto = async () => {
         try {
-            const formData = new FormData();
-            formData.append('nombre', nuevoProducto.nombre);
-            formData.append('descripcion', nuevoProducto.descripcion);
-            formData.append('precio', nuevoProducto.precio);
-            formData.append('stock_actual', nuevoProducto.stock_actual);
-            formData.append('categoria', nuevoProducto.categoria);
-            formData.append('stock_minimo', nuevoProducto.stock_minimo);
+            let response;
             
-            if (nuevoProducto.imagen) {
-                formData.append('imagen', nuevoProducto.imagen);
+            if (isEditing && nuevoProducto.id_producto) {
+                // PARA EDICIÓN: Enviar como FormData para compatibilidad con imagen
+                const formData = new FormData();
+                formData.append('nombre', nuevoProducto.nombre);
+                formData.append('descripcion', nuevoProducto.descripcion || '');
+                formData.append('precio', nuevoProducto.precio);
+                formData.append('categoria', nuevoProducto.categoria || '');
+                formData.append('estado', 'stock');
+                formData.append('stock_minimo', nuevoProducto.stock_minimo || 5);
+                
+                // Solo agregar imagen si hay una nueva
+                if (nuevoProducto.imagen && typeof nuevoProducto.imagen !== 'string') {
+                    formData.append('imagen', nuevoProducto.imagen);
+                }
+                
+                console.log("📤 Enviando datos de edición...");
+                console.log("ID del producto:", nuevoProducto.id_producto);
+                console.log("Datos:", {
+                    nombre: nuevoProducto.nombre,
+                    precio: nuevoProducto.precio,
+                    categoria: nuevoProducto.categoria
+                });
+                
+                response = await api.put(`/productos/${nuevoProducto.id_producto}`, formData, {
+                    headers: { 
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
+                
+                notifications.show({
+                    title: '✅ Producto actualizado',
+                    message: `${nuevoProducto.nombre} ha sido actualizado`,
+                    color: 'green',
+                    icon: <IconCheck size={20} />
+                });
+                
+            } else {
+                // PARA CREACIÓN (mantener igual)
+                const formData = new FormData();
+                formData.append('nombre', nuevoProducto.nombre);
+                formData.append('descripcion', nuevoProducto.descripcion);
+                formData.append('precio', nuevoProducto.precio);
+                formData.append('stock_actual', nuevoProducto.stock_actual);
+                formData.append('categoria', nuevoProducto.categoria);
+                formData.append('stock_minimo', nuevoProducto.stock_minimo);
+                
+                if (nuevoProducto.imagen) {
+                    formData.append('imagen', nuevoProducto.imagen);
+                }
+
+                response = await api.post('/productos', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+
+                notifications.show({
+                    title: '✅ Producto creado',
+                    message: `${nuevoProducto.nombre} ha sido agregado`,
+                    color: 'green',
+                    icon: <IconCheck size={20} />
+                });
             }
 
-            const response = await api.post('/productos', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-
-            notifications.show({
-                title: 'Producto creado',
-                message: `${nuevoProducto.nombre} ha sido agregado`,
-                color: 'green',
-                icon: <IconCheck size={20} />
-            });
-
+            // Limpiar y cerrar
             setModalOpen(false);
             setNuevoProducto({
                 nombre: '', descripcion: '', precio: '', stock_actual: 1,
-                categoria: '', stock_minimo: 5, imagen: null
+                categoria: '', stock_minimo: 5, imagen: null, id_producto: null
             });
+            setIsEditing(false);
             cargarDatos();
+            
         } catch (error) {
+            console.error('❌ Error completo:', error);
+            console.error('📄 Datos de error:', {
+                status: error.response?.status,
+                data: error.response?.data,
+                message: error.message
+            });
+            
             notifications.show({
                 title: '❌ Error',
-                message: error.response?.data?.message || 'No se pudo crear el producto',
+                message: error.response?.data?.error || error.response?.data?.message || error.message || 'Error al guardar el producto',
                 color: 'red',
                 icon: <IconX size={20} />
             });
@@ -182,7 +235,7 @@ const GestionProductos = () => {
             cargarDatos();
         } catch (error) {
             notifications.show({
-                title: '❌ Error',
+                title: 'Error',
                 message: error.response?.data?.message || 'No se pudo crear la categoría',
                 color: 'red',
                 icon: <IconX size={20} />
@@ -204,7 +257,7 @@ const GestionProductos = () => {
             cargarDatos();
         } catch (error) {
             notifications.show({
-                title: '❌ Error',
+                title: 'Error',
                 message: 'No se pudo actualizar el stock',
                 color: 'red',
                 icon: <IconX size={20} />
@@ -225,7 +278,7 @@ const GestionProductos = () => {
             });
         } catch (error) {
             notifications.show({
-                title: '❌ Error',
+                title: 'Error',
                 message: 'No se pudo marcar la notificación',
                 color: 'red',
                 icon: <IconX size={20} />
@@ -249,7 +302,7 @@ const GestionProductos = () => {
             cargarDatos();
         } catch (error) {
             notifications.show({
-                title: '❌ Error',
+                title: 'Error',
                 message: 'No se pudo eliminar el producto',
                 color: 'red',
                 icon: <IconX size={20} />
@@ -432,7 +485,7 @@ const GestionProductos = () => {
                                     </Table.Td>
                                     <Table.Td>
                                         <Text fw={600} c="green">
-                                            ${parseFloat(producto.precio).toFixed(2)}
+                                            Bs {parseFloat(producto.precio).toFixed(2)}
                                         </Text>
                                     </Table.Td>
                                     <Table.Td>
@@ -481,7 +534,24 @@ const GestionProductos = () => {
                                                 </ActionIcon>
                                             </Tooltip>
                                             <Tooltip label="Editar">
-                                                <ActionIcon variant="subtle" color="yellow">
+                                                <ActionIcon 
+                                                    variant="subtle" 
+                                                    color="yellow"
+                                                    onClick={() => {
+                                                        setNuevoProducto({
+                                                            nombre: producto.nombre,
+                                                            descripcion: producto.descripcion || '',
+                                                            precio: producto.precio,
+                                                            stock_actual: producto.stock_actual,
+                                                            categoria: producto.categoria || '',
+                                                            stock_minimo: producto.stock_minimo || 5,
+                                                            imagen: null,
+                                                            id_producto: producto.id_producto 
+                                                        });
+                                                        setIsEditing(true); 
+                                                        setModalOpen(true); 
+                                                    }}
+                                                >
                                                     <IconPencil size={16} />
                                                 </ActionIcon>
                                             </Tooltip>
@@ -674,13 +744,13 @@ const GestionProductos = () => {
                         <Grid gutter="md">
                             <Grid.Col span={6}>
                                 <NumberInput 
-                                    label="Precio ($)"
+                                    label="Precio (BOB)"
                                     required
                                     min={0}
                                     step={0.01}
                                     value={nuevoProducto.precio}
                                     onChange={(val) => setNuevoProducto({...nuevoProducto, precio: val})}
-                                    leftSection={<IconCurrencyDollar size={16} />}
+                                    leftSection={<Text size="sm">Bs.</Text>}
                                 />
                             </Grid.Col>
                             <Grid.Col span={6}>
@@ -691,8 +761,8 @@ const GestionProductos = () => {
                                     value={nuevoProducto.stock_actual}
                                     onChange={(val) => setNuevoProducto({...nuevoProducto, stock_actual: val})}
                                     description={nuevoProducto.stock_actual === 0 ? 
-                                        "⚠️ Producto no será visible en el portal" : 
-                                        "✅ Producto será visible en el portal"
+                                        "Producto no será visible en el portal" : 
+                                        "Producto será visible en el portal"
                                     }
                                 />
                             </Grid.Col>
@@ -752,11 +822,11 @@ const GestionProductos = () => {
                                 Cancelar
                             </Button>
                             <Button 
-                                type="submit" 
+                                onClick={handleCrearProducto}
                                 color="blue"
                                 leftSection={<IconDeviceFloppy size={16} />}
                             >
-                                Guardar Producto
+                                {isEditing ? 'Actualizar Producto' : 'Guardar Producto'}
                             </Button>
                         </Group>
                     </Stack>

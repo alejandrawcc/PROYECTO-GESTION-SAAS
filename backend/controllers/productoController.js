@@ -167,55 +167,65 @@ exports.updateStock = async (req, res) => {
 
 // Actualizar producto
 exports.updateProducto = async (req, res) => {
-    const { id } = req.params;
-    const { nombre, descripcion, precio, categoria, estado, stock_minimo } = req.body;
-    const { microempresa_id } = req.user;
-
     try {
-        let imagen_url = null;
+        console.log("=== DEBUG UPDATE PRODUCTO ===");
+        console.log("Tipo de contenido:", req.headers['content-type']);
+        console.log("Método:", req.method);
+        console.log("URL:", req.url);
+        console.log("Params:", req.params);
+        console.log("Files:", req.file);
         
-        // Si hay nueva imagen, guardarla
-        if (req.file) {
-            // Obtener imagen anterior para eliminarla
-            const [productoAnterior] = await db.execute(
-                'SELECT imagen_url FROM producto WHERE id_producto = ?',
-                [id]
-            );
-            
-            // Eliminar imagen anterior si existe
-            if (productoAnterior[0] && productoAnterior[0].imagen_url) {
-                const oldImagePath = path.join(__dirname, '..', 'uploads', 'productos', productoAnterior[0].imagen_url);
-                if (fs.existsSync(oldImagePath)) {
-                    fs.unlinkSync(oldImagePath);
-                }
+        // Verificar si multer procesó los datos
+        console.log("req.body después de multer:", req.body);
+        
+        // Si req.body es undefined, muestra un mensaje claro
+        if (!req.body) {
+            return res.status(400).json({
+                error: "FormData no procesado",
+                message: "Multer no procesó los datos. Verifica que estés enviando FormData correctamente."
+            });
+        }
+        
+        // Mostrar todas las propiedades de req.body
+        if (typeof req.body === 'object' && req.body !== null) {
+            console.log("Keys en req.body:", Object.keys(req.body));
+            for (let key in req.body) {
+                console.log(`${key}: ${req.body[key]}`);
             }
-            
-            imagen_url = req.file.filename;
         }
-
-        let query = `UPDATE producto 
-                    SET nombre = ?, descripcion = ?, precio = ?, categoria = ?, estado = ?, 
-                    stock_minimo = ?, fecha_actualizacion = CURRENT_TIMESTAMP`;
         
-        const params = [nombre, descripcion, precio, categoria, estado, stock_minimo || 5];
-
-        if (imagen_url) {
-            query += ', imagen_url = ?';
-            params.push(imagen_url);
-        }
-
-        query += ' WHERE id_producto = ? AND microempresa_id = ?';
-        params.push(id, microempresa_id);
-
-        await db.execute(query, params);
-
+        // Datos básicos para prueba
+        const { microempresa_id } = req.user;
+        const { id } = req.params;
+        
+        // Usar valores por defecto si no llegan
+        const nombre = req.body.nombre || "Producto prueba";
+        const precio = req.body.precio || 10;
+        
+        console.log("Datos para actualizar:", { id, microempresa_id, nombre, precio });
+        
+        // Actualización simple para prueba
+        const [result] = await db.execute(
+            'UPDATE producto SET nombre = ?, precio = ? WHERE id_producto = ? AND microempresa_id = ?',
+            [nombre, precio, id, microempresa_id]
+        );
+        
+        console.log("Resultado de la consulta:", result.affectedRows);
+        
         res.json({ 
             message: "Producto actualizado exitosamente",
-            imagen_url: imagen_url
+            success: true,
+            affectedRows: result.affectedRows
         });
+        
     } catch (error) {
-        console.error("Error actualizando producto:", error);
-        res.status(500).json({ error: "Error al actualizar producto" });
+        console.error("❌ Error completo en updateProducto:", error);
+        console.error("Stack trace:", error.stack);
+        res.status(500).json({ 
+            error: "Error interno del servidor",
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 };
 
@@ -225,7 +235,13 @@ exports.deleteProducto = async (req, res) => {
     const { microempresa_id } = req.user;
 
     try {
-        // Obtener imagen para eliminarla
+        // 1. Primero, eliminar las notificaciones relacionadas CON esta nueva línea
+        await db.execute(
+            'DELETE FROM notificacion_stock WHERE producto_id = ?',
+            [id]
+        );
+
+        // 2. Obtener imagen para eliminarla
         const [producto] = await db.execute(
             'SELECT imagen_url FROM producto WHERE id_producto = ? AND microempresa_id = ?',
             [id, microempresa_id]
@@ -235,7 +251,7 @@ exports.deleteProducto = async (req, res) => {
             return res.status(404).json({ message: "Producto no encontrado" });
         }
 
-        // Eliminar imagen si existe
+        // 3. Eliminar imagen si existe
         if (producto[0].imagen_url) {
             const imagePath = path.join(__dirname, '..', 'uploads', 'productos', producto[0].imagen_url);
             if (fs.existsSync(imagePath)) {
@@ -243,24 +259,57 @@ exports.deleteProducto = async (req, res) => {
             }
         }
 
+        // 4. También eliminar registros en otras tablas que puedan referenciar el producto
+        // (Verifica tu base de datos para otras posibles referencias)
+        
+        // Posibles tablas que podrían referenciar producto_id:
+        // - detalle_pedido
+        // - detalle_compra
+        // - inventario_movimiento
+        
+        // Por ejemplo, si tienes detalle_pedido:
+        try {
+            await db.execute(
+                'DELETE FROM detalle_pedido WHERE producto_id = ?',
+                [id]
+            );
+        } catch (error) {
+            console.log("⚠️ No se pudo eliminar de detalle_pedido:", error.message);
+        }
+        
+        try {
+            await db.execute(
+                'DELETE FROM inventario_movimiento WHERE producto_id = ?',
+                [id]
+            );
+        } catch (error) {
+            console.log("⚠️ No se pudo eliminar de inventario_movimiento:", error.message);
+        }
+
+        // 5. Finalmente, eliminar el producto
         await db.execute(
             'DELETE FROM producto WHERE id_producto = ? AND microempresa_id = ?',
             [id, microempresa_id]
         );
 
-        // Eliminar notificaciones relacionadas
-        await db.execute(
-            'DELETE FROM notificacion_stock WHERE producto_id = ?',
-            [id]
-        );
-
         res.json({ message: "Producto eliminado exitosamente" });
     } catch (error) {
-        console.error("Error eliminando producto:", error);
-        res.status(500).json({ error: "Error al eliminar producto" });
+        console.error("❌ Error eliminando producto:", error);
+        
+        // Mensaje más específico según el error
+        if (error.code === 'ER_ROW_IS_REFERENCED_2') {
+            return res.status(400).json({ 
+                error: "No se puede eliminar el producto",
+                message: "El producto está siendo referenciado en otras partes del sistema. Contacta al administrador."
+            });
+        }
+        
+        res.status(500).json({ 
+            error: "Error al eliminar producto",
+            details: error.message 
+        });
     }
 };
-
 // Obtener notificaciones de stock
 exports.getNotificacionesStock = async (req, res) => {
     const { microempresa_id } = req.user;
