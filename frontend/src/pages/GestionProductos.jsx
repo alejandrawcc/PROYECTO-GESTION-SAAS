@@ -144,7 +144,7 @@ const GestionProductos = () => {
             });
 
             notifications.show({
-                title: '✅ Producto creado',
+                title: 'Producto creado',
                 message: `${nuevoProducto.nombre} ha sido agregado`,
                 color: 'green',
                 icon: <IconCheck size={20} />
@@ -171,7 +171,7 @@ const GestionProductos = () => {
             await api.post('/categorias', nuevaCategoria);
             
             notifications.show({
-                title: '✅ Categoría creada',
+                title: 'Categoría creada',
                 message: `Categoría "${nuevaCategoria.nombre}" agregada`,
                 color: 'green',
                 icon: <IconCheck size={20} />
@@ -195,7 +195,7 @@ const GestionProductos = () => {
             await api.put(`/productos/${id}/stock`, { nuevoStock });
             
             notifications.show({
-                title: '✅ Stock actualizado',
+                title: 'Stock actualizado',
                 message: `Stock modificado a ${nuevoStock} unidades`,
                 color: 'green',
                 icon: <IconCheck size={20} />
@@ -218,7 +218,7 @@ const GestionProductos = () => {
             
             setNotificaciones(prev => prev.filter(n => n.id_notificacion !== id));
             notifications.show({
-                title: '📭 Notificación marcada',
+                title: 'Notificación marcada',
                 message: 'Notificación marcada como leída',
                 color: 'blue',
                 icon: <IconCheck size={20} />
@@ -240,7 +240,7 @@ const GestionProductos = () => {
             await api.delete(`/productos/${id}`);
             
             notifications.show({
-                title: '✅ Producto eliminado',
+                title: 'Producto eliminado',
                 message: `Producto "${nombre}" eliminado`,
                 color: 'green',
                 icon: <IconCheck size={20} />

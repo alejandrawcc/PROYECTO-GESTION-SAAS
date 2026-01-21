@@ -210,7 +210,7 @@ exports.updateProducto = async (req, res) => {
         await db.execute(query, params);
 
         res.json({ 
-            message: "✅ Producto actualizado exitosamente",
+            message: "Producto actualizado exitosamente",
             imagen_url: imagen_url
         });
     } catch (error) {
@@ -254,7 +254,7 @@ exports.deleteProducto = async (req, res) => {
             [id]
         );
 
-        res.json({ message: "✅ Producto eliminado exitosamente" });
+        res.json({ message: "Producto eliminado exitosamente" });
     } catch (error) {
         console.error("Error eliminando producto:", error);
         res.status(500).json({ error: "Error al eliminar producto" });
@@ -293,7 +293,7 @@ exports.marcarNotificacionLeida = async (req, res) => {
             [id, microempresa_id]
         );
 
-        res.json({ message: "✅ Notificación marcada como leída" });
+        res.json({ message: "Notificación marcada como leída" });
     } catch (error) {
         console.error("Error marcando notificación:", error);
         res.status(500).json({ error: "Error al marcar notificación" });
@@ -337,7 +337,7 @@ exports.uploadImagen = async (req, res) => {
         );
 
         res.json({ 
-            message: "✅ Imagen subida exitosamente",
+            message: "Imagen subida exitosamente",
             imagen_url: imagen_url
         });
     } catch (error) {
