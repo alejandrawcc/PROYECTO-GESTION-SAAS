@@ -309,7 +309,7 @@ exports.procesarVenta = async (req, res) => {
                 throw new Error(`No se pudo actualizar stock del producto ${item.id_producto}`);
             }
 
-            // Verificar stock después de la actualización
+            // Verificamoss stock 
             const [productoActualizado] = await connection.execute(
                 'SELECT stock_actual FROM producto WHERE id_producto = ?',
                 [item.id_producto]
@@ -318,7 +318,7 @@ exports.procesarVenta = async (req, res) => {
             const nuevoStock = productoActualizado[0].stock_actual;
             console.log(`Stock actualizado: ${item.nombre} -> Nuevo stock: ${nuevoStock}`);
 
-            // Actualizar visibilidad en portal si stock llega a 0
+            // actualiuzar si llega a 0
             if (nuevoStock === 0) {
                 await connection.execute(
                     'UPDATE producto SET visible_portal = 0 WHERE id_producto = ?',
@@ -332,7 +332,7 @@ exports.procesarVenta = async (req, res) => {
                     [item.id_producto, carrito.microempresa_id, `⚠️ Producto "${item.nombre}" se ha agotado`]
                 );
                 
-                console.log(`⚠️ Notificación creada: ${item.nombre} agotado`);
+                console.log(`Notificación creada: ${item.nombre} agotado`);
             } else if (nuevoStock <= 5) {
 
                 await connection.execute(
@@ -350,7 +350,7 @@ exports.procesarVenta = async (req, res) => {
                 'INSERT INTO visita_cliente (cliente_id, microempresa_id, fecha_visita, tipo) VALUES (?, ?, NOW(), "compra")',
                 [clienteId, carrito.microempresa_id]
             );
-            console.log(`👤 Visita registrada para cliente ${clienteId}`);
+            console.log(`Visita registrada para cliente ${clienteId}`);
         }
 
         // 8. Registrar movimiento de inventario

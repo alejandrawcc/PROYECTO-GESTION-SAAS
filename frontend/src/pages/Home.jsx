@@ -51,7 +51,8 @@ import {
     IconCategory,
     IconShoppingBag,
     IconKey,
-    IconLock
+    IconLock,
+    IconReceipt
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser } from '../services/auth';
@@ -300,6 +301,15 @@ export function Home() {
                                     <Badge color="teal" leftSection={<IconUsers size={12} />}>
                                         {clienteLogueado.nombre}
                                     </Badge>
+                                    <Button 
+                                            variant="light" 
+                                            color="blue"
+                                            leftSection={<IconReceipt size={16} />}
+                                            onClick={() => navigate('/mis-pedidos')}
+                                            size="sm"
+                                        >
+                                            Mis Pedidos
+                                        </Button>
                                     <Button 
                                         variant="light" 
                                         color="blue"

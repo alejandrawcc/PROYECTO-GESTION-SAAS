@@ -21,6 +21,7 @@ import Perfil from './pages/Perfil';
 import Suscripcion from './pages/Suscripcion'; 
 import GestionProductos from './pages/GestionProductos';
 import PortalMicroempresa from './pages/PortalMicroempresa';
+import HistorialPedidos from './pages/HistorialPedidos';
 
 import { getCurrentUser } from './services/auth';
 
@@ -109,6 +110,7 @@ function App() {
               <Clientes />
             </PrivateRoute>
           } />
+          <Route path="/mis-pedidos" element={<HistorialPedidos />} />
 
           <Route path="/setup-empresa" element={
             <PrivateRoute>

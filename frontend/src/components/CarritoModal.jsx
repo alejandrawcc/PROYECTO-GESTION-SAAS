@@ -8,13 +8,14 @@ import {
     IconShoppingCart, IconTrash, IconX, IconCheck, 
     IconUser, IconCash, IconPackage, IconReceipt,
     IconLogin, IconUserPlus, IconLock,
-    IconArrowBack, IconArrowRight, IconId, // Agregar estos
-    IconMail, IconPhone, IconKey // Agregar estos
+    IconArrowBack, IconArrowRight, IconId, 
+    IconMail, IconPhone, IconKey 
 } from '@tabler/icons-react';
 import { useState, useEffect } from 'react';
 import { notifications } from '@mantine/notifications';
 import api from '../services/api';
-import clientePublicoService from '../services/clientePublicoService'; // Importar servicio de cliente público
+import clientePublicoService from '../services/clientePublicoService'; 
+import PdfService from '../services/pdfService';
 
 const CarritoModal = ({ 
     opened, 
@@ -167,7 +168,7 @@ const CarritoModal = ({
                 password: '',
                 confirmPassword: ''
             });
-            setPasoVenta(3); // Ir al paso de confirmación
+            setPasoVenta(3); 
         } catch (error) {
             notifications.show({
                 title: 'Error',
@@ -201,7 +202,6 @@ const CarritoModal = ({
         setPasoVenta(3);
     };
 
-    // Resto de funciones existentes (actualizarCantidad, eliminarProducto, vaciarCarrito)...
     const actualizarCantidad = async (productoId, nuevaCantidad) => {
         try {
             const producto = carrito.productos.find(p => p.id_producto === productoId);
@@ -310,6 +310,23 @@ const CarritoModal = ({
                 clienteData: datosParaEnviar,
                 metodoPago
             });
+
+            const ventaData = {
+                pedido_id: response.data.pedido_id,
+                fecha: response.data.fecha,
+                cliente_nombre: clienteAutenticado?.nombre || datosParaEnviar.nombre_razon_social,
+                cliente_ci: clienteAutenticado?.ci || clienteAutenticado?.ci_nit || datosParaEnviar.ci_nit,
+                cliente_email: clienteAutenticado?.email || datosParaEnviar.email,
+                cliente_telefono: clienteAutenticado?.telefono || datosParaEnviar.telefono,
+                productos: response.data.productos_vendidos || carrito.productos,
+                total: response.data.total || carrito.total,
+                metodo_pago: response.data.metodo_pago || metodoPago
+            };
+
+            // Generar PDF automáticamente
+            setTimeout(() => {
+                PdfService.generarComprobanteVenta(ventaData);
+            }, 1000);
             
             notifications.show({
                 title: 'Venta completada!',
