@@ -1,6 +1,5 @@
 const db = require('../config/db');
 
-// Carrito temporal en memoria (en producción usar Redis o base de datos)
 let carritosTemporales = {};
 
 // Agregar producto al carrito
@@ -183,9 +182,9 @@ exports.procesarVenta = async (req, res) => {
                         [clienteId]
                     );
                     
-                    console.log(`✅ Usando cliente existente ID: ${clienteId}, Nombre: ${clienteExistente[0].nombre_razon_social}`);
+                    console.log(`Usando cliente existente ID: ${clienteId}, Nombre: ${clienteExistente[0].nombre_razon_social}`);
                 } else {
-                    console.log(`⚠️ Cliente ID ${clienteData.id_cliente} no encontrado o inactivo, creando nuevo`);
+                    console.log(`Cliente ID ${clienteData.id_cliente} no encontrado o inactivo, creando nuevo`);
                 }
             }
             
@@ -220,7 +219,7 @@ exports.procesarVenta = async (req, res) => {
                         ]
                     );
                     clienteId = resultCliente.insertId;
-                    console.log(`✅ Cliente nuevo creado ID: ${clienteId}, Nombre: ${clienteData.nombre_razon_social}`);
+                    console.log(`Cliente nuevo creado ID: ${clienteId}, Nombre: ${clienteData.nombre_razon_social}`);
                 }
             }
         }
@@ -234,7 +233,7 @@ exports.procesarVenta = async (req, res) => {
                 ['Cliente no registrado', carrito.microempresa_id]
             );
             clienteId = resultCliente.insertId;
-            console.log(`✅ Cliente genérico creado ID: ${clienteId}`);
+            console.log(`Cliente genérico creado ID: ${clienteId}`);
         }
 
         // 4. Verificar stock antes de proceder
@@ -264,7 +263,7 @@ exports.procesarVenta = async (req, res) => {
                 });
             }
             
-            console.log(`✅ Stock OK: ${item.nombre} - Disponible: ${producto.stock_actual}, Pedido: ${item.cantidad}`);
+            console.log(`Stock OK: ${item.nombre} - Disponible: ${producto.stock_actual}, Pedido: ${item.cantidad}`);
         }
 
         // 5. Crear pedido
@@ -281,10 +280,10 @@ exports.procesarVenta = async (req, res) => {
         );
 
         const pedidoId = resultPedido.insertId;
-        console.log(`✅ Pedido creado ID: ${pedidoId}`);
+        console.log(`Pedido creado ID: ${pedidoId}`);
 
         // 6. Crear detalles del pedido y actualizar stock
-        console.log(`📝 Creando detalles del pedido...`);
+        console.log(`Creando detalles del pedido...`);
         
         for (const item of carrito.productos) {
             const precioDecimal = parseFloat(item.precio || 0).toFixed(2);
@@ -298,9 +297,9 @@ exports.procesarVenta = async (req, res) => {
                 [pedidoId, item.id_producto, item.cantidad, precioDecimal, subtotalDecimal]
             );
             
-            console.log(`✅ Detalle: ${item.nombre} x${item.cantidad} = ${subtotalDecimal}`);
+            console.log(`Detalle: ${item.nombre} x${item.cantidad} = ${subtotalDecimal}`);
 
-            // Actualizar stock del producto
+            // Aca actualizamos
             const [updateResult] = await connection.execute(
                 'UPDATE producto SET stock_actual = stock_actual - ?, fecha_actualizacion = NOW() WHERE id_producto = ?',
                 [item.cantidad, item.id_producto]
@@ -317,7 +316,7 @@ exports.procesarVenta = async (req, res) => {
             );
 
             const nuevoStock = productoActualizado[0].stock_actual;
-            console.log(`📊 Stock actualizado: ${item.nombre} -> Nuevo stock: ${nuevoStock}`);
+            console.log(`Stock actualizado: ${item.nombre} -> Nuevo stock: ${nuevoStock}`);
 
             // Actualizar visibilidad en portal si stock llega a 0
             if (nuevoStock === 0) {
@@ -326,7 +325,6 @@ exports.procesarVenta = async (req, res) => {
                     [item.id_producto]
                 );
 
-                // Crear notificación de stock agotado
                 await connection.execute(
                     `INSERT INTO notificacion_stock 
                     (producto_id, microempresa_id, tipo, mensaje, leida, fecha_notificacion) 
@@ -336,7 +334,7 @@ exports.procesarVenta = async (req, res) => {
                 
                 console.log(`⚠️ Notificación creada: ${item.nombre} agotado`);
             } else if (nuevoStock <= 5) {
-                // Crear notificación de stock bajo
+
                 await connection.execute(
                     `INSERT INTO notificacion_stock 
                     (producto_id, microempresa_id, tipo, mensaje, leida, fecha_notificacion) 
@@ -371,7 +369,7 @@ exports.procesarVenta = async (req, res) => {
         // 10. Limpiar carrito después de éxito
         delete carritosTemporales[carritoId];
 
-        console.log(`🎉 Venta procesada exitosamente! Pedido #${pedidoId}, Total: ${totalDecimal}`);
+        console.log(`Venta procesada exitosamente! Pedido #${pedidoId}, Total: ${totalDecimal}`);
 
         res.json({
             success: true,
@@ -380,7 +378,7 @@ exports.procesarVenta = async (req, res) => {
             cliente_id: clienteId,
             metodo_pago: metodoPagoFinal,
             fecha: new Date().toISOString(),
-            message: "✅ Venta procesada exitosamente",
+            message: "Venta procesada exitosamente",
             productos_vendidos: carrito.productos.map(p => ({
                 id: p.id_producto,
                 nombre: p.nombre,

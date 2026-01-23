@@ -26,9 +26,9 @@ exports.registrarClientePublico = async (req, res) => {
         // Crear cliente público
         const [result] = await db.execute(
             `INSERT INTO cliente 
-            (nombre_razon_social, email, telefono, password, origen, estado, fecha_registro) 
-            VALUES (?, ?, ?, ?, 'publico', 'activo', NOW())`,
-            [nombre, email, telefono, hashedPassword]
+            (nombre_razon_social, ci_nit, email, telefono, password, origen, estado, fecha_registro) 
+            VALUES (?, ?, ?, ?, ?, 'publico', 'activo', NOW())`,
+            [nombre, ci, email, telefono, hashedPassword]
         );
 
         const clienteId = result.insertId;
@@ -63,7 +63,7 @@ exports.registrarClientePublico = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("❌ Error registrando cliente público:", error);
+        console.error("Error registrando cliente público:", error);
         res.status(500).json({ 
             message: "Error al registrar cliente",
             error: error.message 

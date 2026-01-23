@@ -190,7 +190,7 @@ const PortalMicroempresa = () => {
             setClienteLogueado(response.data.cliente);
             
             notifications.show({
-                title: '✅ ¡Bienvenido!',
+                title: '¡Bienvenido!',
                 message: `Hola ${response.data.cliente.nombre}`,
                 color: 'green'
             });
@@ -220,26 +220,13 @@ const PortalMicroempresa = () => {
         });
     };
 
-    // Función para agregar al carrito (verifica autenticación)
-    const handleAgregarAlCarrito = async (producto, cantidad = 1) => {
-        // Si no está logueado como cliente, mostrar modal de autenticación
-        if (!clienteLogueado) {
-            setModalAuthOpen(true);
-            setAuthTab('registro');
-            
-            notifications.show({
-                title: '📋 Inicia sesión primero',
-                message: 'Para agregar productos al carrito necesitas una cuenta de cliente',
-                color: 'yellow'
-            });
-            return;
-        }
-
+    // Función para agregar al carrito directamente desde la lista (sin modal)
+    const handleAgregarCarrito = async (producto) => {
         try {
             const response = await api.post('/carrito/agregar', {
                 microempresaId,
                 productoId: producto.id_producto,
-                cantidad: cantidad,
+                cantidad: 1,
                 carritoId: carritoId
             });
             
@@ -252,8 +239,8 @@ const PortalMicroempresa = () => {
             setContadorCarrito(totalItems);
             
             notifications.show({
-                title: '✅ Producto agregado',
-                message: `${cantidad}x ${producto.nombre} agregado al carrito`,
+                title: 'Producto agregado',
+                message: `${producto.nombre} agregado al carrito`,
                 color: 'green',
                 icon: <IconShoppingCart size={20} />
             });
@@ -267,23 +254,10 @@ const PortalMicroempresa = () => {
         }
     };
 
-    // Función para agregar desde modal
+    // Función para agregar desde modal - sin requerir autenticación
     const handleAgregarDesdeModal = async () => {
         if (!productoSeleccionado) return;
         
-        // Si no está logueado como cliente, mostrar modal de autenticación
-        if (!clienteLogueado) {
-            setModalAuthOpen(true);
-            setAuthTab('registro');
-            
-            notifications.show({
-                title: '📋 Inicia sesión primero',
-                message: 'Para agregar productos al carrito necesitas una cuenta de cliente',
-                color: 'yellow'
-            });
-            return;
-        }
-
         try {
             const response = await api.post('/carrito/agregar', {
                 microempresaId,
@@ -301,7 +275,7 @@ const PortalMicroempresa = () => {
             setContadorCarrito(totalItems);
             
             notifications.show({
-                title: '✅ Producto agregado',
+                title: 'Producto agregado',
                 message: `${cantidadModal}x ${productoSeleccionado.nombre} agregado al carrito`,
                 color: 'green',
                 icon: <IconShoppingCart size={20} />
@@ -318,26 +292,12 @@ const PortalMicroempresa = () => {
         }
     };
 
-    const handleComprarAhora = () => {
+    const handleComprarAhora = async () => {
         if (!productoSeleccionado) return;
         
-        // Si no está logueado como cliente, mostrar modal de autenticación
-        if (!clienteLogueado) {
-            setModalAuthOpen(true);
-            setAuthTab('registro');
-            
-            notifications.show({
-                title: '📋 Inicia sesión primero',
-                message: 'Para comprar necesitas una cuenta de cliente',
-                color: 'yellow'
-            });
-            return;
-        }
-
         // Agregar al carrito y abrir el carrito
-        handleAgregarDesdeModal().then(() => {
-            setCarritoOpen(true);
-        });
+        await handleAgregarDesdeModal();
+        setCarritoOpen(true);
     };
 
     // Filtrar productos
@@ -431,8 +391,8 @@ const PortalMicroempresa = () => {
                         </Group>
                         
                         <Group>
-                            {/* Botón del carrito - solo visible si hay cliente logueado */}
-                            {clienteLogueado && (
+                            {/* Botón del carrito - visible si hay productos en carrito */}
+                            {contadorCarrito > 0 && (
                                 <Badge 
                                     color="orange" 
                                     variant="filled" 
@@ -746,17 +706,17 @@ const PortalMicroempresa = () => {
                                             </Badge>
                                         </Group>
                                         
-                                        <Button 
-                                            fullWidth 
-                                            mt="md"
+                                        
+                                        <Button
+                                            fullWidth
+                                            color="green"
                                             variant="filled"
-                                            color={clienteLogueado ? "blue" : "gray"}
+                                            size="md"
                                             leftSection={<IconShoppingCart size={16} />}
-                                            onClick={() => handleAgregarAlCarrito(producto, 1)}
-                                            disabled={producto.stock_actual === 0 || !clienteLogueado}
+                                            onClick={() => handleVerProducto(producto)}
+                                            disabled={producto.stock <= 0}
                                         >
-                                            {!clienteLogueado ? 'Regístrate para comprar' : 
-                                             producto.stock_actual === 0 ? 'Agotado' : 'Agregar al Carrito'}
+                                            {producto.stock <= 0 ? 'Sin Stock' : 'Agregar al carrito'}
                                         </Button>
                                     </Stack>
                                 </Card>
@@ -933,83 +893,44 @@ const PortalMicroempresa = () => {
                             <>
                                 <Divider />
                                 
-                                {/* Alerta si no está logueado */}
-                                {!clienteLogueado && (
-                                    <Alert color="yellow" icon={<IconInfoCircle size={20} />}>
-                                        <Text size="sm">
-                                            <strong>¡Necesitas una cuenta de cliente!</strong> Para agregar este producto al carrito, 
-                                            regístrate o inicia sesión primero.
-                                        </Text>
-                                        <Group mt="md">
-                                            <Button 
-                                                size="sm" 
-                                                variant="light"
-                                                leftSection={<IconLogin size={16} />}
-                                                onClick={() => {
-                                                    setModalProductoOpen(false);
-                                                    setModalAuthOpen(true);
-                                                    setAuthTab('login');
-                                                }}
-                                            >
-                                                Iniciar Sesión
-                                            </Button>
-                                            <Button 
-                                                size="sm"
-                                                leftSection={<IconUserPlus size={16} />}
-                                                onClick={() => {
-                                                    setModalProductoOpen(false);
-                                                    setModalAuthOpen(true);
-                                                    setAuthTab('registro');
-                                                }}
-                                            >
-                                                Registrarse
-                                            </Button>
-                                        </Group>
-                                    </Alert>
-                                )}
+                                <Grid gutter="md">
+                                    <Grid.Col span={6}>
+                                        <NumberInput 
+                                            label="Cantidad"
+                                            value={cantidadModal}
+                                            onChange={setCantidadModal}
+                                            min={1}
+                                            max={productoSeleccionado.stock_actual}
+                                            size="md"
+                                        />
+                                    </Grid.Col>
+                                    <Grid.Col span={6}>
+                                        <Paper withBorder p="md" radius="md">
+                                            <Text size="sm" c="dimmed">Subtotal</Text>
+                                            <Text fw={700} size="lg">
+                                                Bs {(parseFloat(productoSeleccionado.precio || 0) * cantidadModal).toFixed(2)}
+                                            </Text>
+                                        </Paper>
+                                    </Grid.Col>
+                                </Grid>
                                 
-                                {clienteLogueado && (
-                                    <>
-                                        <Grid gutter="md">
-                                            <Grid.Col span={6}>
-                                                <NumberInput 
-                                                    label="Cantidad"
-                                                    value={cantidadModal}
-                                                    onChange={setCantidadModal}
-                                                    min={1}
-                                                    max={productoSeleccionado.stock_actual}
-                                                    size="md"
-                                                />
-                                            </Grid.Col>
-                                            <Grid.Col span={6}>
-                                                <Paper withBorder p="md" radius="md">
-                                                    <Text size="sm" c="dimmed">Subtotal</Text>
-                                                    <Text fw={700} size="lg">
-                                                        Bs {(parseFloat(productoSeleccionado.precio || 0) * cantidadModal).toFixed(2)}
-                                                    </Text>
-                                                </Paper>
-                                            </Grid.Col>
-                                        </Grid>
-                                        
-                                        <Group grow>
-                                            <Button 
-                                                variant="light" 
-                                                color="blue"
-                                                leftSection={<IconShoppingCart size={16} />}
-                                                onClick={handleAgregarDesdeModal}
-                                            >
-                                                Agregar al carrito
-                                            </Button>
-                                            <Button 
-                                                color="green"
-                                                leftSection={<IconShoppingBag size={16} />}
-                                                onClick={handleComprarAhora}
-                                            >
-                                                Comprar ahora
-                                            </Button>
-                                        </Group>
-                                    </>
-                                )}
+                                <Group grow>
+                                    <Button 
+                                        variant="light" 
+                                        color="blue"
+                                        leftSection={<IconShoppingCart size={16} />}
+                                        onClick={handleAgregarDesdeModal}
+                                    >
+                                        Agregar al carrito
+                                    </Button>
+                                    <Button 
+                                        color="green"
+                                        leftSection={<IconShoppingBag size={16} />}
+                                        onClick={handleComprarAhora}
+                                    >
+                                        Comprar ahora
+                                    </Button>
+                                </Group>
                             </>
                         )}
                         
@@ -1125,14 +1046,14 @@ const PortalMicroempresa = () => {
                 </Tabs>
             </Modal>
 
-            {/* Modal del Carrito - solo visible si hay cliente logueado */}
-            {clienteLogueado && (
+            {/* Modal del Carrito - visible si hay productos */}
+            {carritoId && (
                 <CarritoModal
                     opened={carritoOpen}
                     onClose={() => setCarritoOpen(false)}
                     microempresaId={microempresaId}
                     carritoId={carritoId}
-                    datosCliente={clienteLogueado} // <-- Cambiado a 'datosCliente'
+                    datosCliente={clienteLogueado} // <-- Datos del cliente si está logueado
                     onActualizarCarrito={(data) => {
                         if (data?.vaciado) {
                             // Si el carrito fue vaciado después de compra

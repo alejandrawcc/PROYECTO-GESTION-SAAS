@@ -234,9 +234,6 @@ export function Home() {
 
     // Acceder al portal de una microempresa
     const handleAccederPortal = async (microempresaId, empresaNombre) => {
-        // ¡NO requiere login para ver el portal!
-        // Cualquiera puede acceder al portal
-        
         // Si el cliente está logueado, registrar visita
         if (clienteLogueado) {
             try {

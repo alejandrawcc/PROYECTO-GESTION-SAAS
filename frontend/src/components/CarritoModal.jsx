@@ -16,7 +16,7 @@ const CarritoModal = ({
     onClose, 
     microempresaId,
     carritoId,
-    datosCliente, // Cambiado de 'clienteData' a 'datosCliente' para evitar conflicto
+    datosCliente, 
     onActualizarCarrito 
 }) => {
     const [carrito, setCarrito] = useState(null);
@@ -180,7 +180,7 @@ const CarritoModal = ({
             });
             
             notifications.show({
-                title: '✅ Venta completada!',
+                title: 'Venta completada!',
                 message: `Pedido #${response.data.pedido_id} procesado exitosamente`,
                 color: 'green',
                 icon: <IconCheck size={20} />
@@ -335,8 +335,8 @@ const CarritoModal = ({
                                 value={formularioCliente.tipo}
                                 onChange={(val) => setFormularioCliente({...formularioCliente, tipo: val})}
                                 data={[
-                                    { value: 'nuevo', label: 'Cliente Nuevo' },
-                                    { value: 'existente', label: 'Cliente Registrado' }
+                                    { value: 'nuevo', label: 'Registrarse' },
+                                    { value: 'existente', label: 'Iniciar Sesión' }
                                 ]}
                             />
                             
@@ -360,6 +360,13 @@ const CarritoModal = ({
                                         placeholder="+591 70000000"
                                         value={formularioCliente.telefono}
                                         onChange={(e) => setFormularioCliente({...formularioCliente, telefono: e.target.value})}
+                                    />
+                                    <TextInput
+                                        label="Email"
+                                        placeholder="cliente@email.com"
+                                        type="email"
+                                        value={formularioCliente.email}
+                                        onChange={(e) => setFormularioCliente({...formularioCliente, email: e.target.value})}
                                     />
                                     <TextInput
                                         label="Email"
