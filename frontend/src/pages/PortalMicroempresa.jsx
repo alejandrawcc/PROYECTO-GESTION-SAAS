@@ -1,24 +1,24 @@
 import { 
     Container, Title, Text, Card, SimpleGrid, Group, Badge, Button,
     Image, Stack, Paper, Center, Loader, TextInput, Select, Grid,
-    Divider, Box, Avatar, Breadcrumbs, Anchor, Pagination, Rating,
-    Tabs, Modal, NumberInput, Alert, ActionIcon, ThemeIcon,
-    ScrollArea, rem, Flex, List
+    Divider, Box, Avatar, Pagination, Modal, NumberInput, Alert,
+    ActionIcon, ScrollArea, Tabs
 } from '@mantine/core';
 import { 
     IconBuilding, IconPhone, IconMail, IconMapPin, IconCategory,
     IconSearch, IconFilter, IconShoppingCart, IconHeart, IconShare,
     IconArrowLeft, IconHome, IconChevronRight, IconInfoCircle,
-    IconPackage, IconCheck, IconX, IconStar, IconStarFilled,
-    IconEye, IconCurrencyDollar, IconBasket, IconTruck, IconShield,
-    IconRefresh, IconBuildingStore, IconUsers, IconCalendar,
-    IconShoppingBag, IconTag, IconDiscount
+    IconPackage, IconCheck, IconX, IconStar, IconEye,
+    IconCurrencyDollar, IconTruck, IconShield, IconRefresh,
+    IconBuildingStore, IconUsers, IconShoppingBag, IconTag,
+    IconUserPlus, IconLogin, IconLogout, IconUser
 } from '@tabler/icons-react';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
 import api from '../services/api';
 import { getCurrentUser } from '../services/auth';
+import CarritoModal from '../components/CarritoModal';
 
 const PortalMicroempresa = () => {
     const { microempresaId } = useParams();
@@ -31,6 +31,26 @@ const PortalMicroempresa = () => {
     const [categorias, setCategorias] = useState([]);
     const [empresa, setEmpresa] = useState(null);
     
+    // Estados del carrito
+    const [carritoId, setCarritoId] = useState(null);
+    const [carritoOpen, setCarritoOpen] = useState(false);
+    const [contadorCarrito, setContadorCarrito] = useState(0);
+    
+    // Estados para login/registro de cliente
+    const [clienteLogueado, setClienteLogueado] = useState(null);
+    const [modalAuthOpen, setModalAuthOpen] = useState(false);
+    const [authTab, setAuthTab] = useState('login'); // 'login' o 'registro'
+    
+    // Formularios de autenticación
+    const [loginData, setLoginData] = useState({ email: '', password: '' });
+    const [registroData, setRegistroData] = useState({
+        nombre: '',
+        email: '',
+        telefono: '',
+        password: '',
+        confirmPassword: ''
+    });
+    
     // Filtros
     const [busqueda, setBusqueda] = useState('');
     const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('todas');
@@ -40,14 +60,36 @@ const PortalMicroempresa = () => {
     // Modal de producto
     const [modalProductoOpen, setModalProductoOpen] = useState(false);
     const [productoSeleccionado, setProductoSeleccionado] = useState(null);
-    const [cantidadCarrito, setCantidadCarrito] = useState(1);
+    const [cantidadModal, setCantidadModal] = useState(1);
 
     const itemsPorPagina = 12;
 
-    // Cargar datos del portal
+    // Cargar datos del portal y verificar cliente logueado
     useEffect(() => {
         cargarPortal();
+        verificarClienteLogueado();
+        
+        // Cargar carrito del localStorage si existe
+        const savedCarritoId = localStorage.getItem(`carrito_${microempresaId}`);
+        if (savedCarritoId) {
+            setCarritoId(savedCarritoId);
+            cargarInfoCarrito(savedCarritoId);
+        }
     }, [microempresaId]);
+
+    // Verificar si hay un cliente logueado
+    const verificarClienteLogueado = () => {
+        const clienteToken = localStorage.getItem('cliente_token');
+        const clienteData = localStorage.getItem('cliente_data');
+        
+        if (clienteToken && clienteData) {
+            try {
+                setClienteLogueado(JSON.parse(clienteData));
+            } catch (error) {
+                console.error("Error parseando datos del cliente:", error);
+            }
+        }
+    };
 
     const cargarPortal = async () => {
         setLoading(true);
@@ -69,6 +111,235 @@ const PortalMicroempresa = () => {
         }
     };
 
+    const cargarInfoCarrito = async (id) => {
+        try {
+            const response = await api.get(`/carrito/${id}`);
+            const totalItems = response.data.carrito?.productos?.reduce((sum, p) => sum + p.cantidad, 0) || 0;
+            setContadorCarrito(totalItems);
+        } catch (error) {
+            console.error("Error cargando carrito:", error);
+            
+            // Si es error 404 (carrito no encontrado), limpiar
+            if (error.response?.status === 404) {
+                localStorage.removeItem(`carrito_${microempresaId}`);
+                setCarritoId(null);
+                setContadorCarrito(0);
+            }
+        }
+    };
+
+    // Función para registrar cliente
+    const handleRegistroCliente = async () => {
+        if (registroData.password !== registroData.confirmPassword) {
+            notifications.show({
+                title: 'Error',
+                message: 'Las contraseñas no coinciden',
+                color: 'red'
+            });
+            return;
+        }
+
+        try {
+            const response = await api.post('/clientes-publico/registrar', {
+                nombre: registroData.nombre,
+                email: registroData.email,
+                telefono: registroData.telefono,
+                password: registroData.password
+            });
+
+            // Guardar token y datos del cliente
+            localStorage.setItem('cliente_token', response.data.token);
+            localStorage.setItem('cliente_data', JSON.stringify(response.data.cliente));
+            setClienteLogueado(response.data.cliente);
+            
+            notifications.show({
+                title: '✅ Registro exitoso!',
+                message: `Bienvenido ${registroData.nombre}`,
+                color: 'green'
+            });
+
+            setModalAuthOpen(false);
+            setRegistroData({
+                nombre: '',
+                email: '',
+                telefono: '',
+                password: '',
+                confirmPassword: ''
+            });
+
+        } catch (error) {
+            notifications.show({
+                title: 'Error',
+                message: error.response?.data?.message || 'Error al registrar',
+                color: 'red'
+            });
+        }
+    };
+
+    // Función para login de cliente
+    const handleLoginCliente = async () => {
+        try {
+            const response = await api.post('/clientes-publico/login', {
+                email: loginData.email,
+                password: loginData.password
+            });
+
+            // Guardar token y datos del cliente
+            localStorage.setItem('cliente_token', response.data.token);
+            localStorage.setItem('cliente_data', JSON.stringify(response.data.cliente));
+            setClienteLogueado(response.data.cliente);
+            
+            notifications.show({
+                title: '✅ ¡Bienvenido!',
+                message: `Hola ${response.data.cliente.nombre}`,
+                color: 'green'
+            });
+
+            setModalAuthOpen(false);
+            setLoginData({ email: '', password: '' });
+
+        } catch (error) {
+            notifications.show({
+                title: 'Error',
+                message: error.response?.data?.message || 'Credenciales incorrectas',
+                color: 'red'
+            });
+        }
+    };
+
+    // Función para logout de cliente
+    const handleLogoutCliente = () => {
+        localStorage.removeItem('cliente_token');
+        localStorage.removeItem('cliente_data');
+        setClienteLogueado(null);
+        
+        notifications.show({
+            title: 'Sesión cerrada',
+            message: 'Has salido de tu cuenta de cliente',
+            color: 'blue'
+        });
+    };
+
+    // Función para agregar al carrito (verifica autenticación)
+    const handleAgregarAlCarrito = async (producto, cantidad = 1) => {
+        // Si no está logueado como cliente, mostrar modal de autenticación
+        if (!clienteLogueado) {
+            setModalAuthOpen(true);
+            setAuthTab('registro');
+            
+            notifications.show({
+                title: '📋 Inicia sesión primero',
+                message: 'Para agregar productos al carrito necesitas una cuenta de cliente',
+                color: 'yellow'
+            });
+            return;
+        }
+
+        try {
+            const response = await api.post('/carrito/agregar', {
+                microempresaId,
+                productoId: producto.id_producto,
+                cantidad: cantidad,
+                carritoId: carritoId
+            });
+            
+            const nuevoCarritoId = response.data.carritoId;
+            setCarritoId(nuevoCarritoId);
+            localStorage.setItem(`carrito_${microempresaId}`, nuevoCarritoId);
+            
+            // Actualizar contador
+            const totalItems = response.data.carrito?.productos?.reduce((sum, p) => sum + p.cantidad, 0) || 0;
+            setContadorCarrito(totalItems);
+            
+            notifications.show({
+                title: '✅ Producto agregado',
+                message: `${cantidad}x ${producto.nombre} agregado al carrito`,
+                color: 'green',
+                icon: <IconShoppingCart size={20} />
+            });
+            
+        } catch (error) {
+            notifications.show({
+                title: 'Error',
+                message: error.response?.data?.message || 'No se pudo agregar al carrito',
+                color: 'red'
+            });
+        }
+    };
+
+    // Función para agregar desde modal
+    const handleAgregarDesdeModal = async () => {
+        if (!productoSeleccionado) return;
+        
+        // Si no está logueado como cliente, mostrar modal de autenticación
+        if (!clienteLogueado) {
+            setModalAuthOpen(true);
+            setAuthTab('registro');
+            
+            notifications.show({
+                title: '📋 Inicia sesión primero',
+                message: 'Para agregar productos al carrito necesitas una cuenta de cliente',
+                color: 'yellow'
+            });
+            return;
+        }
+
+        try {
+            const response = await api.post('/carrito/agregar', {
+                microempresaId,
+                productoId: productoSeleccionado.id_producto,
+                cantidad: cantidadModal,
+                carritoId: carritoId
+            });
+            
+            const nuevoCarritoId = response.data.carritoId;
+            setCarritoId(nuevoCarritoId);
+            localStorage.setItem(`carrito_${microempresaId}`, nuevoCarritoId);
+            
+            // Actualizar contador
+            const totalItems = response.data.carrito?.productos?.reduce((sum, p) => sum + p.cantidad, 0) || 0;
+            setContadorCarrito(totalItems);
+            
+            notifications.show({
+                title: '✅ Producto agregado',
+                message: `${cantidadModal}x ${productoSeleccionado.nombre} agregado al carrito`,
+                color: 'green',
+                icon: <IconShoppingCart size={20} />
+            });
+            
+            setModalProductoOpen(false);
+            
+        } catch (error) {
+            notifications.show({
+                title: 'Error',
+                message: error.response?.data?.message || 'No se pudo agregar al carrito',
+                color: 'red'
+            });
+        }
+    };
+
+    const handleComprarAhora = () => {
+        if (!productoSeleccionado) return;
+        
+        // Si no está logueado como cliente, mostrar modal de autenticación
+        if (!clienteLogueado) {
+            setModalAuthOpen(true);
+            setAuthTab('registro');
+            
+            notifications.show({
+                title: '📋 Inicia sesión primero',
+                message: 'Para comprar necesitas una cuenta de cliente',
+                color: 'yellow'
+            });
+            return;
+        }
+
+        // Agregar al carrito y abrir el carrito
+        handleAgregarDesdeModal().then(() => {
+            setCarritoOpen(true);
+        });
+    };
+
     // Filtrar productos
     const productosFiltrados = productos.filter(producto => {
         const matchBusqueda = busqueda ? 
@@ -85,9 +356,9 @@ const PortalMicroempresa = () => {
     const productosOrdenados = [...productosFiltrados].sort((a, b) => {
         switch (orden) {
             case 'precio-asc':
-                return a.precio - b.precio;
+                return parseFloat(a.precio) - parseFloat(b.precio);
             case 'precio-desc':
-                return b.precio - a.precio;
+                return parseFloat(b.precio) - parseFloat(a.precio);
             case 'nombre':
                 return a.nombre.localeCompare(b.nombre);
             case 'recientes':
@@ -102,43 +373,16 @@ const PortalMicroempresa = () => {
     const fin = inicio + itemsPorPagina;
     const productosPaginados = productosOrdenados.slice(inicio, fin);
 
-    // Handlers
+    // Handler para abrir modal de producto
     const handleVerProducto = (producto) => {
         setProductoSeleccionado(producto);
+        setCantidadModal(1);
         setModalProductoOpen(true);
-        setCantidadCarrito(1);
-    };
-
-    const handleAgregarCarrito = () => {
-        if (!productoSeleccionado) return;
-        
-        // Aquí implementarías la lógica del carrito
-        notifications.show({
-            title: 'Producto agregado',
-            message: `${cantidadCarrito}x ${productoSeleccionado.nombre} agregado al carrito`,
-            color: 'green',
-            icon: <IconShoppingCart size={20} />
-        });
-        
-        setModalProductoOpen(false);
-    };
-
-    const handleComprarAhora = () => {
-        if (!productoSeleccionado) return;
-        
-        notifications.show({
-            title: 'Proceder a compra',
-            message: `Redirigiendo al proceso de compra de ${productoSeleccionado.nombre}`,
-            color: 'blue',
-            icon: <IconShoppingBag size={20} />
-        });
-        
-        setModalProductoOpen(false);
     };
 
     if (loading) {
         return (
-            <Center h="100vh">
+            <Center style={{ minHeight: '100vh' }}>
                 <Stack align="center">
                     <Loader size="lg" />
                     <Text>Cargando portal...</Text>
@@ -149,7 +393,7 @@ const PortalMicroempresa = () => {
 
     if (!empresa) {
         return (
-            <Center h="100vh">
+            <Center style={{ minHeight: '100vh' }}>
                 <Stack align="center">
                     <IconBuilding size={48} color="red" />
                     <Title order={3}>Microempresa no encontrada</Title>
@@ -167,7 +411,7 @@ const PortalMicroempresa = () => {
     }
 
     return (
-        <Box bg="gray.0" minHeight="100vh">
+        <Box bg="gray.0" style={{ minHeight: '100vh' }}>
             {/* Header del portal */}
             <Paper bg="white" shadow="sm" radius={0} p="md">
                 <Container size="xl">
@@ -187,6 +431,64 @@ const PortalMicroempresa = () => {
                         </Group>
                         
                         <Group>
+                            {/* Botón del carrito - solo visible si hay cliente logueado */}
+                            {clienteLogueado && (
+                                <Badge 
+                                    color="orange" 
+                                    variant="filled" 
+                                    size="lg"
+                                    style={{ cursor: 'pointer' }}
+                                    onClick={() => setCarritoOpen(true)}
+                                    leftSection={<IconShoppingCart size={16} />}
+                                >
+                                    {contadorCarrito} productos
+                                </Badge>
+                            )}
+                            
+                            {/* Estado del cliente */}
+                            {clienteLogueado ? (
+                                <Group>
+                                    <Badge color="teal" leftSection={<IconUser size={12} />}>
+                                        {clienteLogueado.nombre}
+                                    </Badge>
+                                    <Button 
+                                        variant="light" 
+                                        color="red"
+                                        size="sm"
+                                        leftSection={<IconLogout size={16} />}
+                                        onClick={handleLogoutCliente}
+                                    >
+                                        Salir
+                                    </Button>
+                                </Group>
+                            ) : (
+                                <Group>
+                                    <Button 
+                                        variant="light" 
+                                        size="sm"
+                                        leftSection={<IconLogin size={16} />}
+                                        onClick={() => {
+                                            setModalAuthOpen(true);
+                                            setAuthTab('login');
+                                        }}
+                                    >
+                                        Iniciar Sesión
+                                    </Button>
+                                    <Button 
+                                        variant="filled" 
+                                        size="sm"
+                                        color="teal"
+                                        leftSection={<IconUserPlus size={16} />}
+                                        onClick={() => {
+                                            setModalAuthOpen(true);
+                                            setAuthTab('registro');
+                                        }}
+                                    >
+                                        Registrarse
+                                    </Button>
+                                </Group>
+                            )}
+                            
                             <Button 
                                 variant="light" 
                                 onClick={() => navigate('/')}
@@ -194,11 +496,6 @@ const PortalMicroempresa = () => {
                             >
                                 Volver
                             </Button>
-                            {user && (
-                                <Badge color="teal" variant="light">
-                                    Cliente: {user.nombre}
-                                </Badge>
-                            )}
                         </Group>
                     </Group>
                 </Container>
@@ -236,6 +533,35 @@ const PortalMicroempresa = () => {
                     </Stack>
                 </Container>
             </Box>
+
+            {/* Alerta para clientes no registrados */}
+            {!clienteLogueado && (
+                <Container size="xl" py="md">
+                    <Alert 
+                        color="blue" 
+                        variant="light"
+                        icon={<IconInfoCircle size={20} />}
+                    >
+                        <Group justify="space-between">
+                            <Text size="sm">
+                                <strong>¡Regístrate gratis!</strong> Para agregar productos al carrito y realizar compras, 
+                                necesitas una cuenta de cliente. Es rápido y fácil.
+                            </Text>
+                            <Button 
+                                size="sm" 
+                                variant="light"
+                                leftSection={<IconUserPlus size={16} />}
+                                onClick={() => {
+                                    setModalAuthOpen(true);
+                                    setAuthTab('registro');
+                                }}
+                            >
+                                Registrarme
+                            </Button>
+                        </Group>
+                    </Alert>
+                </Container>
+            )}
 
             {/* Contenido principal */}
             <Container size="xl" py="xl">
@@ -361,16 +687,12 @@ const PortalMicroempresa = () => {
                                     withBorder
                                     style={{ 
                                         transition: 'transform 0.2s',
-                                        cursor: 'pointer',
                                         display: 'flex',
                                         flexDirection: 'column',
                                         height: '100%'
                                     }}
-                                    onClick={() => handleVerProducto(producto)}
-                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
-                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                                 >
-                                    <Card.Section>
+                                    <Card.Section style={{ cursor: 'pointer' }} onClick={() => handleVerProducto(producto)}>
                                         {producto.imagen_url ? (
                                             <Image
                                                 src={`http://localhost:3000/uploads/productos/${producto.imagen_url}`}
@@ -386,7 +708,13 @@ const PortalMicroempresa = () => {
                                     </Card.Section>
 
                                     <Stack gap="xs" mt="md" style={{ flex: 1 }}>
-                                        <Text fw={500} size="lg" lineClamp={1}>
+                                        <Text 
+                                            fw={500} 
+                                            size="lg" 
+                                            lineClamp={1}
+                                            style={{ cursor: 'pointer' }}
+                                            onClick={() => handleVerProducto(producto)}
+                                        >
                                             {producto.nombre}
                                         </Text>
                                         
@@ -396,13 +724,19 @@ const PortalMicroempresa = () => {
                                             </Badge>
                                         )}
                                         
-                                        <Text size="sm" c="dimmed" lineClamp={2}>
+                                        <Text 
+                                            size="sm" 
+                                            c="dimmed" 
+                                            lineClamp={2}
+                                            style={{ cursor: 'pointer' }}
+                                            onClick={() => handleVerProducto(producto)}
+                                        >
                                             {producto.descripcion || 'Sin descripción'}
                                         </Text>
                                         
                                         <Group justify="space-between" mt="auto">
                                             <Text fw={700} size="xl" c="green">
-                                                Bs {parseFloat(producto.precio).toFixed(2)}
+                                                Bs {parseFloat(producto.precio || 0).toFixed(2)}
                                             </Text>
                                             <Badge 
                                                 color={producto.stock_actual > 0 ? 'green' : 'red'}
@@ -414,15 +748,15 @@ const PortalMicroempresa = () => {
                                         
                                         <Button 
                                             fullWidth 
-                                            mt="sm"
-                                            color="blue"
-                                            leftSection={<IconEye size={16} />}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleVerProducto(producto);
-                                            }}
+                                            mt="md"
+                                            variant="filled"
+                                            color={clienteLogueado ? "blue" : "gray"}
+                                            leftSection={<IconShoppingCart size={16} />}
+                                            onClick={() => handleAgregarAlCarrito(producto, 1)}
+                                            disabled={producto.stock_actual === 0 || !clienteLogueado}
                                         >
-                                            Ver detalles
+                                            {!clienteLogueado ? 'Regístrate para comprar' : 
+                                             producto.stock_actual === 0 ? 'Agotado' : 'Agregar al Carrito'}
                                         </Button>
                                     </Stack>
                                 </Card>
@@ -574,7 +908,7 @@ const PortalMicroempresa = () => {
                                 <Paper withBorder p="md" radius="md">
                                     <Text size="sm" c="dimmed">Precio</Text>
                                     <Text fw={700} size="xl" c="green">
-                                        Bs {parseFloat(productoSeleccionado.precio).toFixed(2)}
+                                        Bs {parseFloat(productoSeleccionado.precio || 0).toFixed(2)}
                                     </Text>
                                 </Paper>
                             </Grid.Col>
@@ -599,44 +933,83 @@ const PortalMicroempresa = () => {
                             <>
                                 <Divider />
                                 
-                                <Grid gutter="md">
-                                    <Grid.Col span={6}>
-                                        <NumberInput 
-                                            label="Cantidad"
-                                            value={cantidadCarrito}
-                                            onChange={setCantidadCarrito}
-                                            min={1}
-                                            max={productoSeleccionado.stock_actual}
-                                            size="md"
-                                        />
-                                    </Grid.Col>
-                                    <Grid.Col span={6}>
-                                        <Paper withBorder p="md" radius="md">
-                                            <Text size="sm" c="dimmed">Subtotal</Text>
-                                            <Text fw={700} size="lg">
-                                                Bs {(productoSeleccionado.precio * cantidadCarrito).toFixed(2)}
-                                            </Text>
-                                        </Paper>
-                                    </Grid.Col>
-                                </Grid>
+                                {/* Alerta si no está logueado */}
+                                {!clienteLogueado && (
+                                    <Alert color="yellow" icon={<IconInfoCircle size={20} />}>
+                                        <Text size="sm">
+                                            <strong>¡Necesitas una cuenta de cliente!</strong> Para agregar este producto al carrito, 
+                                            regístrate o inicia sesión primero.
+                                        </Text>
+                                        <Group mt="md">
+                                            <Button 
+                                                size="sm" 
+                                                variant="light"
+                                                leftSection={<IconLogin size={16} />}
+                                                onClick={() => {
+                                                    setModalProductoOpen(false);
+                                                    setModalAuthOpen(true);
+                                                    setAuthTab('login');
+                                                }}
+                                            >
+                                                Iniciar Sesión
+                                            </Button>
+                                            <Button 
+                                                size="sm"
+                                                leftSection={<IconUserPlus size={16} />}
+                                                onClick={() => {
+                                                    setModalProductoOpen(false);
+                                                    setModalAuthOpen(true);
+                                                    setAuthTab('registro');
+                                                }}
+                                            >
+                                                Registrarse
+                                            </Button>
+                                        </Group>
+                                    </Alert>
+                                )}
                                 
-                                <Group grow>
-                                    <Button 
-                                        variant="light" 
-                                        color="blue"
-                                        leftSection={<IconShoppingCart size={16} />}
-                                        onClick={handleAgregarCarrito}
-                                    >
-                                        Agregar al carrito
-                                    </Button>
-                                    <Button 
-                                        color="green"
-                                        leftSection={<IconShoppingBag size={16} />}
-                                        onClick={handleComprarAhora}
-                                    >
-                                        Comprar ahora
-                                    </Button>
-                                </Group>
+                                {clienteLogueado && (
+                                    <>
+                                        <Grid gutter="md">
+                                            <Grid.Col span={6}>
+                                                <NumberInput 
+                                                    label="Cantidad"
+                                                    value={cantidadModal}
+                                                    onChange={setCantidadModal}
+                                                    min={1}
+                                                    max={productoSeleccionado.stock_actual}
+                                                    size="md"
+                                                />
+                                            </Grid.Col>
+                                            <Grid.Col span={6}>
+                                                <Paper withBorder p="md" radius="md">
+                                                    <Text size="sm" c="dimmed">Subtotal</Text>
+                                                    <Text fw={700} size="lg">
+                                                        Bs {(parseFloat(productoSeleccionado.precio || 0) * cantidadModal).toFixed(2)}
+                                                    </Text>
+                                                </Paper>
+                                            </Grid.Col>
+                                        </Grid>
+                                        
+                                        <Group grow>
+                                            <Button 
+                                                variant="light" 
+                                                color="blue"
+                                                leftSection={<IconShoppingCart size={16} />}
+                                                onClick={handleAgregarDesdeModal}
+                                            >
+                                                Agregar al carrito
+                                            </Button>
+                                            <Button 
+                                                color="green"
+                                                leftSection={<IconShoppingBag size={16} />}
+                                                onClick={handleComprarAhora}
+                                            >
+                                                Comprar ahora
+                                            </Button>
+                                        </Group>
+                                    </>
+                                )}
                             </>
                         )}
                         
@@ -654,6 +1027,124 @@ const PortalMicroempresa = () => {
                     </Stack>
                 )}
             </Modal>
+
+            {/* Modal de autenticación (login/registro) */}
+            <Modal 
+                opened={modalAuthOpen} 
+                onClose={() => setModalAuthOpen(false)}
+                title={authTab === 'login' ? "Iniciar Sesión" : "Registrarse como Cliente"}
+                size="md"
+                centered
+            >
+                <Tabs value={authTab} onChange={setAuthTab}>
+                    <Tabs.List grow mb="md">
+                        <Tabs.Tab value="login" leftSection={<IconLogin size={16} />}>
+                            Iniciar Sesión
+                        </Tabs.Tab>
+                        <Tabs.Tab value="registro" leftSection={<IconUserPlus size={16} />}>
+                            Registrarse
+                        </Tabs.Tab>
+                    </Tabs.List>
+
+                    <Tabs.Panel value="login">
+                        <Stack gap="md">
+                            <TextInput
+                                label="Email"
+                                placeholder="cliente@email.com"
+                                type="email"
+                                value={loginData.email}
+                                onChange={(e) => setLoginData({...loginData, email: e.target.value})}
+                                required
+                            />
+                            <TextInput
+                                label="Contraseña"
+                                type="password"
+                                placeholder="Tu contraseña"
+                                value={loginData.password}
+                                onChange={(e) => setLoginData({...loginData, password: e.target.value})}
+                                required
+                            />
+                            <Button 
+                                fullWidth 
+                                color="blue"
+                                onClick={handleLoginCliente}
+                            >
+                                Iniciar Sesión
+                            </Button>
+                        </Stack>
+                    </Tabs.Panel>
+
+                    <Tabs.Panel value="registro">
+                        <Stack gap="md">
+                            <TextInput
+                                label="Nombre Completo"
+                                placeholder="Juan Pérez"
+                                value={registroData.nombre}
+                                onChange={(e) => setRegistroData({...registroData, nombre: e.target.value})}
+                                required
+                            />
+                            <TextInput
+                                label="Email"
+                                placeholder="cliente@email.com"
+                                type="email"
+                                value={registroData.email}
+                                onChange={(e) => setRegistroData({...registroData, email: e.target.value})}
+                                required
+                            />
+                            <TextInput
+                                label="Teléfono"
+                                placeholder="+591 70000000"
+                                value={registroData.telefono}
+                                onChange={(e) => setRegistroData({...registroData, telefono: e.target.value})}
+                            />
+                            <TextInput
+                                label="Contraseña"
+                                type="password"
+                                placeholder="Mínimo 6 caracteres"
+                                value={registroData.password}
+                                onChange={(e) => setRegistroData({...registroData, password: e.target.value})}
+                                required
+                            />
+                            <TextInput
+                                label="Confirmar Contraseña"
+                                type="password"
+                                placeholder="Repite tu contraseña"
+                                value={registroData.confirmPassword}
+                                onChange={(e) => setRegistroData({...registroData, confirmPassword: e.target.value})}
+                                required
+                            />
+                            <Button 
+                                fullWidth 
+                                color="teal"
+                                onClick={handleRegistroCliente}
+                            >
+                                Registrarse
+                            </Button>
+                        </Stack>
+                    </Tabs.Panel>
+                </Tabs>
+            </Modal>
+
+            {/* Modal del Carrito - solo visible si hay cliente logueado */}
+            {clienteLogueado && (
+                <CarritoModal
+                    opened={carritoOpen}
+                    onClose={() => setCarritoOpen(false)}
+                    microempresaId={microempresaId}
+                    carritoId={carritoId}
+                    datosCliente={clienteLogueado} // <-- Cambiado a 'datosCliente'
+                    onActualizarCarrito={(data) => {
+                        if (data?.vaciado) {
+                            // Si el carrito fue vaciado después de compra
+                            localStorage.removeItem(`carrito_${microempresaId}`);
+                            setCarritoId(null);
+                            setContadorCarrito(0);
+                        } else if (carritoId) {
+                            cargarInfoCarrito(carritoId);
+                        }
+                    }}
+                />
+            )}
         </Box>
     );
 };

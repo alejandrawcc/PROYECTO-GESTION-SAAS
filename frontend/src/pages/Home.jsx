@@ -230,53 +230,28 @@ export function Home() {
         });
     };
 
+    
+
     // Acceder al portal de una microempresa
     const handleAccederPortal = async (microempresaId, empresaNombre) => {
-        if (!clienteLogueado) {
-            // Si no está logueado, abrir modal de login/registro
-            setModalClienteAbierto(true);
-            setActiveTab('cliente-login');
-            
-            notifications.show({
-                title: '📋 Inicia sesión primero',
-                message: `Para ver los productos de "${empresaNombre}", necesitas una cuenta de cliente`,
-                color: 'yellow',
-            });
-            return;
-        }
-
-        try {
-            // Registrar visita
-            await clientePublicoService.registrarVisita({
-                cliente_id: clienteLogueado.id,
-                microempresa_id: microempresaId
-            });
-
-            // Navegar al portal
-            navigate(`/portal/${microempresaId}`);
-            
-        } catch (error) {
-            console.error('Error accediendo al portal:', error);
-            
-            // Si hay error de token, cerrar sesión
-            if (error.response?.status === 401) {
-                handleLogoutCliente();
-                setModalClienteAbierto(true);
-                setActiveTab('cliente-login');
-                
-                notifications.show({
-                    title: 'Sesión expirada',
-                    message: 'Por favor, inicia sesión nuevamente',
-                    color: 'orange',
+        // ¡NO requiere login para ver el portal!
+        // Cualquiera puede acceder al portal
+        
+        // Si el cliente está logueado, registrar visita
+        if (clienteLogueado) {
+            try {
+                await clientePublicoService.registrarVisita({
+                    cliente_id: clienteLogueado.id,
+                    microempresa_id: microempresaId
                 });
-            } else {
-                notifications.show({
-                    title: 'Error',
-                    message: 'No se pudo acceder al portal',
-                    color: 'red'
-                });
+            } catch (error) {
+                console.log("No se pudo registrar visita:", error);
+                // No importa si falla, el portal sigue accesible
             }
         }
+
+        // Navegar al portal (¡sin necesidad de login!)
+        navigate(`/portal/${microempresaId}`);
     };
 
     // Filtrar microempresas por búsqueda
@@ -686,16 +661,10 @@ export function Home() {
                                     color={clienteLogueado ? "blue" : "gray"}
                                     leftSection={<IconEye size={16} />}
                                     onClick={() => handleAccederPortal(empresa.id_microempresa, empresa.nombre)}
-                                    disabled={!clienteLogueado}
                                 >
-                                    {clienteLogueado ? 'Ver Catálogo' : 'Inicia sesión para ver'}
+                                    Ver Catálogo
                                 </Button>
                                 
-                                {!clienteLogueado && (
-                                    <Text size="xs" c="dimmed" ta="center" mt="xs">
-                                        Necesitas una cuenta de cliente
-                                    </Text>
-                                )}
                             </Card>
                         ))}
                     </SimpleGrid>

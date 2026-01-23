@@ -1,6 +1,7 @@
 const db = require('../config/db');
 
 // Obtener datos completos del portal de una microempresa
+// Modificar getPortalData para acceso público
 exports.getPortalData = async (req, res) => {
     const { microempresaId } = req.params;
 
@@ -36,7 +37,7 @@ exports.getPortalData = async (req, res) => {
             [microempresaId, microempresaId]
         );
 
-        // Obtener productos visibles
+        // Obtener productos visibles (PÚBLICO - sin restricción)
         const [productos] = await db.execute(
             `SELECT p.*
             FROM producto p
