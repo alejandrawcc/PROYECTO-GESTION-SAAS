@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 
 // REGISTRO DE CLIENTE PÚBLICO
 exports.registrarClientePublico = async (req, res) => {
-    const { nombre, email, telefono, password } = req.body;
+    const { nombre, email, telefono, password, ci } = req.body; // Agregar ci
 
     try {
         // Validar que el email no exista
@@ -19,6 +19,20 @@ exports.registrarClientePublico = async (req, res) => {
             });
         }
 
+        // Validar que el CI no exista (si se proporciona)
+        if (ci) {
+            const [existeCI] = await db.execute(
+                'SELECT id_cliente FROM cliente WHERE ci_nit = ?',
+                [ci]
+            );
+
+            if (existeCI.length > 0) {
+                return res.status(400).json({ 
+                    message: "El CI ya está registrado" 
+                });
+            }
+        }
+
         // Encriptar contraseña
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
@@ -28,7 +42,7 @@ exports.registrarClientePublico = async (req, res) => {
             `INSERT INTO cliente 
             (nombre_razon_social, ci_nit, email, telefono, password, origen, estado, fecha_registro) 
             VALUES (?, ?, ?, ?, ?, 'publico', 'activo', NOW())`,
-            [nombre, ci, email, telefono, hashedPassword]
+            [nombre, ci, email, telefono, hashedPassword] // Usar ci aquí
         );
 
         const clienteId = result.insertId;
@@ -39,7 +53,8 @@ exports.registrarClientePublico = async (req, res) => {
                 id: clienteId, 
                 tipo: 'cliente_publico',
                 nombre: nombre,
-                email: email
+                email: email,
+                ci: ci // Incluir CI en el token si lo necesitas
             },
             process.env.JWT_SECRET,
             { expiresIn: '30d' } // Token válido por 30 días
@@ -57,6 +72,7 @@ exports.registrarClientePublico = async (req, res) => {
             cliente: {
                 id: clienteId,
                 nombre: nombre,
+                ci: ci, // Incluir en la respuesta
                 email: email,
                 telefono: telefono
             }
@@ -111,7 +127,8 @@ exports.loginClientePublico = async (req, res) => {
                 id: cliente.id_cliente, 
                 tipo: 'cliente_publico',
                 nombre: cliente.nombre_razon_social,
-                email: cliente.email
+                email: cliente.email,
+                ci: cliente.ci_nit // Incluir CI en el token
             },
             process.env.JWT_SECRET,
             { expiresIn: '30d' }
@@ -129,6 +146,7 @@ exports.loginClientePublico = async (req, res) => {
             cliente: {
                 id: cliente.id_cliente,
                 nombre: cliente.nombre_razon_social,
+                ci: cliente.ci_nit, // Incluir CI en la respuesta
                 email: cliente.email,
                 telefono: cliente.telefono
             }
