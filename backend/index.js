@@ -51,6 +51,8 @@ const productoRoutes = require('./routes/productoRoutes');
 const portalRoutes = require('./routes/portalRoutes');  
 const clientePublicoRoutes = require('./routes/clientePublicoRoutes');
 const carritoRoutes = require('./routes/carritoRoutes');
+const proveedorRoutes = require('./routes/proveedorRoutes');
+const compraRoutes = require('./routes/compraRoutes');
 
 // --- 4. USO DE RUTAS ---
 app.use('/api/auth', authRoutes);
@@ -64,6 +66,8 @@ app.use('/api/productos', productoRoutes);
 app.use('/api/portal', portalRoutes); 
 app.use('/api/clientes-publico', clientePublicoRoutes);
 app.use('/api/carrito', carritoRoutes);
+app.use('/api/proveedores', proveedorRoutes);
+app.use('/api/compras', compraRoutes);
 
 // --- 5. ENDPOINTS DE PRUEBA ---
 app.get('/api/test', (req, res) => {

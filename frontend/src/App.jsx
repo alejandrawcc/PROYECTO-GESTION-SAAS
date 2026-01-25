@@ -22,6 +22,8 @@ import Suscripcion from './pages/Suscripcion';
 import GestionProductos from './pages/GestionProductos';
 import PortalMicroempresa from './pages/PortalMicroempresa';
 import HistorialPedidos from './pages/HistorialPedidos';
+import GestionProveedores from './pages/GestionProveedores';
+import GestionCompras from './pages/GestionCompras';
 
 import { getCurrentUser } from './services/auth';
 
@@ -134,6 +136,18 @@ function App() {
             <PrivateRoute requiredRoles={['super_admin', 'administrador']}>
               <Perfil />
             </PrivateRoute>
+          } />
+
+          <Route path="/gestion-proveedores" element={
+              <PrivateRoute requiredRoles={['super_admin', 'administrador']}>
+                  <GestionProveedores />
+              </PrivateRoute>
+          } />
+
+          <Route path="/gestion-compras" element={
+              <PrivateRoute requiredRoles={['super_admin', 'administrador']}>
+                  <GestionCompras />
+              </PrivateRoute>
           } />
 
           <Route path="/suscripcion" element={

@@ -20,21 +20,16 @@ const storage = multer.diskStorage({
 // Agrega esto para debug de multer:
 const upload = multer({ 
     storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 },
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
     fileFilter: (req, file, cb) => {
-        console.log("📁 Multer procesando archivo:", file.originalname);
-        console.log("📁 Tipo MIME:", file.mimetype);
-        
         const allowedTypes = /jpeg|jpg|png|gif|webp/;
         const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
         const mimetype = allowedTypes.test(file.mimetype);
 
         if (extname && mimetype) {
-            console.log("✅ Archivo aceptado");
             cb(null, true);
         } else {
-            console.log("❌ Archivo rechazado:", file.originalname);
-            cb(new Error('Solo se permiten imágenes'));
+            cb(new Error('Solo se permiten imágenes (JPEG, JPG, PNG, GIF, WEBP)'));
         }
     }
 });
@@ -64,5 +59,18 @@ router.put('/:id', verifyToken, upload.single('imagen'), productoController.upda
 
 // Rutas públicas para el portal
 router.get('/public/:microempresaId', productoController.getProductosPublic);
+
+router.put('/:id', verifyToken, (req, res, next) => {
+    upload.single('imagen')(req, res, (err) => {
+        if (err) {
+            console.error("❌ Error en multer:", err.message);
+            return res.status(400).json({ 
+                error: "Error al procesar la imagen", 
+                message: err.message 
+            });
+        }
+        next();
+    });
+}, productoController.updateProducto);
 
 module.exports = router;

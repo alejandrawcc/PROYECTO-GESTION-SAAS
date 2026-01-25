@@ -9,7 +9,10 @@ import {
   IconPackage,      
   IconShoppingCart, 
   IconCreditCard,
-  IconAddressBook // Icono para Clientes
+  IconAddressBook,
+  IconBuildingStore,
+  IconShoppingBag,
+  IconTruck
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser, logout } from '../services/auth';
@@ -44,6 +47,12 @@ export function MainLayout({ children }) {
     if (['administrador', 'super_admin'].includes(user?.rol)) {
       items.push({ label: 'Productos', icon: IconPackage, path: '/gestion-productos' });
     }
+
+    if (['administrador'].includes(user?.rol)) {
+      items.push({ label: 'Proveedores', icon: IconTruck, path: '/gestion-proveedores' });
+      items.push({ label: 'Compras', icon: IconShoppingBag, path: '/gestion-compras' });
+    }
+
     return items;
   };
 

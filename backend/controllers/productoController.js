@@ -166,65 +166,88 @@ exports.updateStock = async (req, res) => {
 };
 
 // Actualizar producto
+// Reemplazar la función updateProducto completa con esta versión corregida:
 exports.updateProducto = async (req, res) => {
     try {
-        console.log("=== DEBUG UPDATE PRODUCTO ===");
-        console.log("Tipo de contenido:", req.headers['content-type']);
-        console.log("Método:", req.method);
-        console.log("URL:", req.url);
-        console.log("Params:", req.params);
-        console.log("Files:", req.file);
-        
-        // Verificar si multer procesó los datos
-        console.log("req.body después de multer:", req.body);
-        
-        // Si req.body es undefined, muestra un mensaje claro
-        if (!req.body) {
-            return res.status(400).json({
-                error: "FormData no procesado",
-                message: "Multer no procesó los datos. Verifica que estés enviando FormData correctamente."
-            });
-        }
-        
-        // Mostrar todas las propiedades de req.body
-        if (typeof req.body === 'object' && req.body !== null) {
-            console.log("Keys en req.body:", Object.keys(req.body));
-            for (let key in req.body) {
-                console.log(`${key}: ${req.body[key]}`);
-            }
-        }
-        
-        // Datos básicos para prueba
         const { microempresa_id } = req.user;
         const { id } = req.params;
         
-        // Usar valores por defecto si no llegan
-        const nombre = req.body.nombre || "Producto prueba";
-        const precio = req.body.precio || 10;
+        // Obtener datos del body (si viene como FormData, algunos campos pueden estar en req.body)
+        const { nombre, descripcion, precio, categoria, stock_minimo } = req.body;
         
-        console.log("Datos para actualizar:", { id, microempresa_id, nombre, precio });
+        console.log("📝 Datos recibidos para actualizar:", {
+            id, microempresa_id, nombre, precio, categoria
+        });
         
-        // Actualización simple para prueba
-        const [result] = await db.execute(
-            'UPDATE producto SET nombre = ?, precio = ? WHERE id_producto = ? AND microempresa_id = ?',
-            [nombre, precio, id, microempresa_id]
-        );
+        if (!nombre || !precio) {
+            return res.status(400).json({ 
+                success: false,
+                message: "Nombre y precio son requeridos" 
+            });
+        }
         
-        console.log("Resultado de la consulta:", result.affectedRows);
+        // Preparar los valores para la actualización
+        let imagen_url = null;
+        if (req.file) {
+            imagen_url = req.file.filename;
+            
+            // Obtener imagen anterior para eliminarla
+            const [productoAnterior] = await db.execute(
+                'SELECT imagen_url FROM producto WHERE id_producto = ? AND microempresa_id = ?',
+                [id, microempresa_id]
+            );
+            
+            if (productoAnterior.length > 0 && productoAnterior[0].imagen_url) {
+                const oldImagePath = path.join(__dirname, '..', 'uploads', 'productos', productoAnterior[0].imagen_url);
+                if (fs.existsSync(oldImagePath)) {
+                    fs.unlinkSync(oldImagePath);
+                }
+            }
+        }
+        
+        // Construir la consulta dinámicamente
+        let query = 'UPDATE producto SET nombre = ?, descripcion = ?, precio = ?, categoria = ?, stock_minimo = ?';
+        let params = [nombre, descripcion, precio, categoria || null, stock_minimo || 5];
+        
+        if (imagen_url) {
+            query += ', imagen_url = ?';
+            params.push(imagen_url);
+        }
+        
+        query += ', fecha_actualizacion = CURRENT_TIMESTAMP WHERE id_producto = ? AND microempresa_id = ?';
+        params.push(id, microempresa_id);
+        
+        // Ejecutar la actualización
+        const [result] = await db.execute(query, params);
+        
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ 
+                success: false,
+                message: "Producto no encontrado o no tienes permiso" 
+            });
+        }
         
         res.json({ 
-            message: "Producto actualizado exitosamente",
             success: true,
-            affectedRows: result.affectedRows
+            message: "Producto actualizado exitosamente",
+            data: {
+                id: parseInt(id),
+                nombre,
+                precio: parseFloat(precio),
+                categoria,
+                imagen_url
+            }
         });
         
     } catch (error) {
-        console.error("❌ Error completo en updateProducto:", error);
-        console.error("Stack trace:", error.stack);
+        console.error("❌ Error en updateProducto:", error);
+        console.error("SQL Error:", error.sqlMessage);
+        
         res.status(500).json({ 
+            success: false,
             error: "Error interno del servidor",
             message: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            sqlError: error.sqlMessage
         });
     }
 };

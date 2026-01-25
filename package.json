@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@mantine/dates": "^8.3.13",
     "@tabler/icons-react": "^3.36.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.0.0",
