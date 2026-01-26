@@ -7,6 +7,8 @@ router.post('/agregar', carritoController.agregarAlCarrito);
 router.get('/:carritoId', carritoController.verCarrito);
 router.delete('/:carritoId/producto/:productoId', carritoController.eliminarDelCarrito);
 router.post('/procesar-venta', carritoController.procesarVenta);
+// Endpoint para listar ventas (filtrado por periodo y por vendedor si aplica)
+router.get('/ventas', carritoController.getVentas);
 router.delete('/:carritoId/vaciar', carritoController.vaciarCarrito);
 // Agrega esta ruta
 router.get('/pedidos-cliente/:clienteId', async (req, res) => {

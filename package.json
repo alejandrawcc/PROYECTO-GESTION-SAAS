@@ -4,6 +4,7 @@
     "@tabler/icons-react": "^3.36.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.0.0",
+    "pdfkit": "^0.17.2",
     "recharts": "^3.6.0"
   }
 }

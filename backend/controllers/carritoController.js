@@ -148,6 +148,7 @@ exports.procesarVenta = async (req, res) => {
     
     // Iniciar transacción
     const connection = await db.getConnection();
+    const id_usuario = req.user?.id || null;
     
     try {
         await connection.beginTransaction();
@@ -272,11 +273,13 @@ exports.procesarVenta = async (req, res) => {
         
         console.log(`💰 Creando pedido: Total: ${totalDecimal}, Cliente: ${clienteId}, Método: ${metodoPagoFinal}`);
         
+        // Registrar pedido incluyendo usuario (no todas las bases tienen microempresa_id en pedido)
+        const id_usuario = req.user?.id || null;
         const [resultPedido] = await connection.execute(
             `INSERT INTO pedido 
             (fecha, total, metodo_pago, estado, cliente_id, usuario_id) 
-            VALUES (NOW(), ?, ?, 'completado', ?, NULL)`,
-            [totalDecimal, metodoPagoFinal, clienteId]
+            VALUES (NOW(), ?, ?, 'completado', ?, ?)`,
+            [totalDecimal, metodoPagoFinal, clienteId, id_usuario]
         );
 
         const pedidoId = resultPedido.insertId;
@@ -357,9 +360,9 @@ exports.procesarVenta = async (req, res) => {
         for (const item of carrito.productos) {
             await connection.execute(
                 `INSERT INTO inventario_movimiento 
-                (tipo, cantidad, fecha, producto_id, usuario_id, microempresa_id) 
-                VALUES ('salida', ?, NOW(), ?, NULL, ?)`,
-                [item.cantidad, item.id_producto, carrito.microempresa_id]
+                (tipo, cantidad, fecha, id_producto, id_usuario, microempresa_id) 
+                VALUES ('salida', ?, NOW(), ?, ?, ?)`,
+                [item.cantidad, item.id_producto, id_usuario, carrito.microempresa_id]
             );
         }
 
@@ -426,4 +429,75 @@ exports.vaciarCarrito = (req, res) => {
     }
     
     res.json({ success: true, message: "Carrito vaciado" });
+};
+
+// Obtener ventas (para vendedor: solo sus ventas, para admins: todas de la microempresa)
+exports.getVentas = async (req, res) => {
+    try {
+        const { periodo } = req.query; // 'hoy', 'semana', 'mes', 'anio', or undefined
+        const { rol, microempresa_id, id } = req.user;
+
+        let filtroFecha = '';
+        switch (periodo) {
+            case 'hoy':
+                filtroFecha = 'AND DATE(p.fecha) = CURDATE()';
+                break;
+            case 'semana':
+                filtroFecha = 'AND YEARWEEK(p.fecha, 1) = YEARWEEK(CURDATE(), 1)';
+                break;
+            case 'mes':
+                filtroFecha = 'AND MONTH(p.fecha) = MONTH(CURDATE()) AND YEAR(p.fecha) = YEAR(CURDATE())';
+                break;
+            case 'anio':
+                filtroFecha = 'AND YEAR(p.fecha) = YEAR(CURDATE())';
+                break;
+            default:
+                filtroFecha = '';
+        }
+
+        // Base query
+        let query = `
+            SELECT 
+                p.id_pedido,
+                p.fecha,
+                p.total,
+                p.metodo_pago,
+                p.estado,
+                p.cliente_id,
+                c.nombre_razon_social as cliente_nombre,
+                p.usuario_id,
+                u.nombre as vendedor_nombre,
+                COUNT(dp.pedido_id) as total_items
+            FROM pedido p
+            LEFT JOIN cliente c ON p.cliente_id = c.id_cliente
+            LEFT JOIN usuario u ON p.usuario_id = u.id_usuario
+            LEFT JOIN detalle_pedido dp ON p.id_pedido = dp.pedido_id
+            WHERE 1=1
+        `;
+
+        const params = [];
+
+        // Filtrar por microempresa a través del usuario asociado al pedido
+        if (microempresa_id) {
+            query += ' AND u.microempresa_id = ?';
+            params.push(microempresa_id);
+        }
+
+        // Si el rol es vendedor, mostrar solo sus ventas
+        if (rol === 'vendedor') {
+            query += ' AND p.usuario_id = ?';
+            params.push(id);
+        }
+
+        // Agregar filtro de fecha
+        if (filtroFecha) query += ` ${filtroFecha}`;
+
+        query += ' GROUP BY p.id_pedido ORDER BY p.fecha DESC';
+
+        const [ventas] = await db.execute(query, params);
+        res.json(ventas);
+    } catch (error) {
+        console.error('❌ Error obteniendo ventas:', error);
+        res.status(500).json({ error: 'Error al obtener ventas', details: error.message });
+    }
 };

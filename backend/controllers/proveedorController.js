@@ -49,37 +49,22 @@ exports.createProveedor = async (req, res) => {
     }
 };
 
-// 2. OBTENER PROVEEDORES POR EMPRESA (solo activos por defecto)
+// 2. OBTENER PROVEEDORES POR EMPRESA
 exports.getProveedoresByEmpresa = async (req, res) => {
     const { microempresa_id } = req.user;
-    const { incluir_inactivos = 'false' } = req.query; // Opcional: incluir inactivos
-
     try {
-        let query = `
-            SELECT p.*,
-            (SELECT COUNT(*) FROM producto WHERE proveedor_id = p.id_proveedor) as total_productos,
+        const [rows] = await db.execute(
+            `SELECT p.*, 
             (SELECT COUNT(*) FROM detalle_compra WHERE id_proveedor = p.id_proveedor) as total_compras
-            FROM proveedor p
-            WHERE p.microempresa_id = ?
-        `;
-        
-        const params = [microempresa_id];
-
-        if (incluir_inactivos !== 'true') {
-            query += ' AND p.estado = "activo"';
-        }
-
-        query += ' ORDER BY p.estado ASC, p.nombre ASC';
-
-        const [proveedores] = await db.execute(query, params);
-        
-        res.json(proveedores);
+            FROM proveedor p 
+            WHERE p.microempresa_id = ? 
+            ORDER BY p.nombre ASC`,
+            [microempresa_id]
+        );
+        res.json(rows);
     } catch (error) {
-        console.error("❌ Error obteniendo proveedores:", error);
-        res.status(500).json({ 
-            error: "Error al obtener proveedores",
-            details: error.message 
-        });
+        console.error("❌ Error en proveedores:", error);
+        res.status(500).json({ error: error.message });
     }
 };
 
@@ -91,41 +76,30 @@ exports.getProveedorById = async (req, res) => {
     try {
         const [proveedores] = await db.execute(
             `SELECT p.*,
-            (SELECT COUNT(*) FROM producto WHERE proveedor_id = p.id_proveedor) as total_productos,
+            (SELECT COUNT(DISTINCT id_producto) FROM detalle_compra WHERE id_proveedor = p.id_proveedor) as total_productos,
             (SELECT COUNT(*) FROM detalle_compra WHERE id_proveedor = p.id_proveedor) as total_compras
             FROM proveedor p
             WHERE p.id_proveedor = ? AND p.microempresa_id = ?`,
             [id, microempresa_id]
         );
         
-        if (proveedores.length === 0) {
-            return res.status(404).json({ 
-                message: "Proveedor no encontrado" 
-            });
-        }
+        if (proveedores.length === 0) return res.status(404).json({ message: "Proveedor no encontrado" });
         
-        // Obtener productos de este proveedor
+        // OJO: Esta consulta fallará porque 'producto' no tiene 'id_proveedor'. 
+        // La ajustamos para buscar en detalle_compra:
         const [productos] = await db.execute(
-            `SELECT id_producto, nombre, precio, stock_actual, estado
-            FROM producto
-            WHERE proveedor_id = ? AND microempresa_id = ?
-            ORDER BY nombre ASC`,
+            `SELECT DISTINCT pr.id_producto, pr.nombre, pr.precio, pr.stock_actual, pr.estado
+            FROM producto pr
+            INNER JOIN detalle_compra dc ON pr.id_producto = dc.id_producto
+            WHERE dc.id_proveedor = ? AND pr.microempresa_id = ?
+            ORDER BY pr.nombre ASC`,
             [id, microempresa_id]
         );
         
-        res.json({
-            proveedor: proveedores[0],
-            productos,
-            estadisticas: {
-                total_productos: productos.length
-            }
-        });
+        res.json({ proveedor: proveedores[0], productos, estadisticas: { total_productos: productos.length } });
     } catch (error) {
         console.error("❌ Error obteniendo proveedor:", error);
-        res.status(500).json({ 
-            error: "Error al obtener proveedor",
-            details: error.message 
-        });
+        res.status(500).json({ error: "Error al obtener proveedor", details: error.message });
     }
 };
 
@@ -193,64 +167,36 @@ exports.updateProveedor = async (req, res) => {
     }
 };
 
-// 5. CAMBIAR ESTADO DEL PROVEEDOR (activar/desactivar)
+// 5. CAMBIAR ESTADO (Ajustado para validar contra detalle_compra)
 exports.toggleEstadoProveedor = async (req, res) => {
     const { id } = req.params;
-    const { estado } = req.body; // 'activo' o 'inactivo'
+    const { estado } = req.body;
     const { microempresa_id } = req.user;
 
     try {
-        // Verificar que el proveedor existe
-        const [proveedor] = await db.execute(
-            'SELECT * FROM proveedor WHERE id_proveedor = ? AND microempresa_id = ?',
-            [id, microempresa_id]
-        );
-        
-        if (proveedor.length === 0) {
-            return res.status(404).json({ 
-                message: "Proveedor no encontrado" 
-            });
-        }
-
-        // Validar estado
-        if (!['activo', 'inactivo'].includes(estado)) {
-            return res.status(400).json({ 
-                message: "Estado inválido. Use 'activo' o 'inactivo'" 
-            });
-        }
-
-        // Verificar si tiene productos asociados antes de desactivar
         if (estado === 'inactivo') {
-            const [productos] = await db.execute(
-                'SELECT COUNT(*) as total FROM producto WHERE proveedor_id = ?',
+            // Buscamos si tiene movimientos de compra registrados
+            const [compras] = await db.execute(
+                'SELECT COUNT(*) as total FROM detalle_compra WHERE id_proveedor = ?',
                 [id]
             );
             
-            if (productos[0].total > 0) {
+            if (compras[0].total > 0) {
                 return res.status(400).json({ 
-                    message: "No se puede desactivar el proveedor porque tiene productos asociados",
-                    total_productos: productos[0].total,
-                    sugerencia: "Primero desasocia los productos o cámbiales de proveedor"
+                    message: "No se puede desactivar un proveedor con historial de compras",
+                    total_operaciones: compras[0].total
                 });
             }
         }
 
-        // Actualizar estado
         await db.execute(
             'UPDATE proveedor SET estado = ? WHERE id_proveedor = ? AND microempresa_id = ?',
             [estado, id, microempresa_id]
         );
 
-        res.json({ 
-            message: `Proveedor ${estado === 'activo' ? 'activado' : 'desactivado'} con éxito`,
-            nuevo_estado: estado
-        });
+        res.json({ message: `Proveedor ${estado} con éxito`, nuevo_estado: estado });
     } catch (error) {
-        console.error("❌ Error cambiando estado del proveedor:", error);
-        res.status(500).json({ 
-            error: "Error al cambiar estado del proveedor",
-            details: error.message 
-        });
+        res.status(500).json({ error: "Error al cambiar estado", details: error.message });
     }
 };
 
@@ -282,25 +228,26 @@ exports.searchProveedores = async (req, res) => {
 };
 
 // 7. OBTENER PROVEEDORES PARA SELECTOR (solo activos)
+
 exports.getProveedoresForSelect = async (req, res) => {
     const { microempresa_id } = req.user;
-
+    
     try {
+        // CORRECCIÓN: 
+        // 1. Quitamos 'ci_nit' del SELECT porque no existe en la tabla.
+        // 2. Quitamos "AND estado = 'activo'" del WHERE si tu tabla no tiene columna estado.
         const [proveedores] = await db.execute(
-            `SELECT id_proveedor, nombre, ci_nit
-            FROM proveedor
-            WHERE microempresa_id = ? AND estado = 'activo'
-            ORDER BY nombre ASC`,
+            `SELECT id_proveedor, nombre 
+             FROM proveedor 
+             WHERE microempresa_id = ? 
+             ORDER BY nombre ASC`,
             [microempresa_id]
         );
         
         res.json(proveedores);
     } catch (error) {
         console.error("❌ Error obteniendo proveedores para selector:", error);
-        res.status(500).json({ 
-            error: "Error al obtener proveedores",
-            details: error.message 
-        });
+        res.status(500).json({ error: "Error al obtener la lista de proveedores" });
     }
 };
 

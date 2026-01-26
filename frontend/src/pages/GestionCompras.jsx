@@ -11,11 +11,12 @@ import {
     IconCash, IconArrowRight, IconDownload, IconChartBar,
     IconListDetails, IconAlertCircle, IconInfoCircle, IconDeviceFloppy
 } from '@tabler/icons-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { notifications } from '@mantine/notifications';
 import { getCurrentUser } from '../services/auth';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios'; // Asegúrate de tener axios configurado
 
 const GestionCompras = () => {
     const user = getCurrentUser();
@@ -27,6 +28,8 @@ const GestionCompras = () => {
     const [productos, setProductos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
+    const [modalProveedorOpen, setModalProveedorOpen] = useState(false);
+    const [modalProductoOpen, setModalProductoOpen] = useState(false);
     const [modalDetallesOpen, setModalDetallesOpen] = useState(false);
     const [compraSeleccionada, setCompraSeleccionada] = useState(null);
     const [detallesCompra, setDetallesCompra] = useState(null);
@@ -38,6 +41,24 @@ const GestionCompras = () => {
         tipo_pago: 'efectivo',
         observaciones: '',
         productos: []
+    });
+
+    const [nuevoProveedor, setNuevoProveedor] = useState({
+        nombre: '',
+        nombre_contacto: '',
+        direccion: '',
+        telefono: '',
+        email: '',
+        ci_nit: '',
+        descripcion: ''
+    });
+
+    const [nuevoProducto, setNuevoProducto] = useState({
+        nombre: '',
+        codigo: '',
+        precio_actual: 0,
+        stock_actual: 0,
+        descripcion: ''
     });
     
     // Estado para productos en la compra
@@ -56,15 +77,38 @@ const GestionCompras = () => {
         cargarDatos();
     }, []);
 
+    // Debounce refs
+    const searchTimeout = useRef(null);
+    const dateTimeout = useRef(null);
+
+    // Auto-refresh cuando cambia la búsqueda (debounced)
+    useEffect(() => {
+        if (searchTimeout.current) clearTimeout(searchTimeout.current);
+        searchTimeout.current = setTimeout(() => {
+            cargarDatos();
+        }, 500);
+        return () => clearTimeout(searchTimeout.current);
+    }, [busqueda]);
+
+    // Auto-refresh cuando cambian fechas (debounced)
+    useEffect(() => {
+        if (dateTimeout.current) clearTimeout(dateTimeout.current);
+        dateTimeout.current = setTimeout(() => {
+            cargarDatos();
+        }, 300);
+        return () => clearTimeout(dateTimeout.current);
+    }, [fechaInicio, fechaFin]);
+
     const cargarDatos = async () => {
         setLoading(true);
         try {
             // Cargar compras
             const params = new URLSearchParams();
-            if (filtroProveedor !== 'todos') params.append('proveedor_id', filtroProveedor);
+            if (filtroProveedor !== 'todos') params.append('id_proveedor', filtroProveedor);
             if (fechaInicio) params.append('fecha_inicio', fechaInicio);
             if (fechaFin) params.append('fecha_fin', fechaFin);
-            
+            if (busqueda) params.append('busqueda', busqueda);
+
             const resCompras = await api.get(`/compras?${params.toString()}`);
             setCompras(resCompras.data || []);
             
@@ -85,6 +129,78 @@ const GestionCompras = () => {
             });
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Handler para crear proveedor desde el modal
+    const handleCrearProveedor = async () => {
+        if (!nuevoProveedor.nombre || nuevoProveedor.nombre.trim() === '') {
+            notifications.show({ title: 'Error', message: 'El nombre es requerido', color: 'red' });
+            return;
+        }
+
+        try {
+            await api.post('/proveedores', nuevoProveedor);
+
+            notifications.show({
+                title: '✅ Proveedor creado',
+                message: 'Proveedor creado correctamente',
+                color: 'green',
+                icon: <IconCheck size={18} />
+            });
+
+            // Recargar proveedores y seleccionar el nuevo (busca por nombre)
+            const resProv = await api.get('/proveedores/select');
+            setProveedores(resProv.data || []);
+            const creado = (resProv.data || []).find(p => p.nombre === nuevoProveedor.nombre);
+            if (creado) {
+                setNuevaCompra({...nuevaCompra, proveedor_id: creado.id_proveedor.toString()});
+            }
+
+            // Reset y cerrar modal
+            setNuevoProveedor({ nombre: '', nombre_contacto: '', direccion: '', telefono: '', email: '', ci_nit: '', descripcion: '' });
+            setModalProveedorOpen(false);
+
+        } catch (error) {
+            console.error('Error creando proveedor', error);
+            notifications.show({ title: 'Error', message: 'No se pudo crear el proveedor', color: 'red' });
+        }
+    };
+
+    // Handler para crear producto desde el modal
+    const handleCrearProducto = async () => {
+        if (!nuevoProducto.nombre || nuevoProducto.nombre.trim() === '') {
+            notifications.show({ title: 'Error', message: 'El nombre del producto es requerido', color: 'red' });
+            return;
+        }
+
+        try {
+            await api.post('/productos', nuevoProducto);
+
+            notifications.show({
+                title: '✅ Producto creado',
+                message: 'Producto creado correctamente',
+                color: 'green',
+                icon: <IconCheck size={18} />
+            });
+
+            // Recargar productos
+            const resProd = await api.get('/compras/productos');
+            setProductos(resProd.data || []);
+
+            // Intentar seleccionar/añadir el producto recién creado por nombre
+            const creado = (resProd.data || []).find(p => p.nombre === nuevoProducto.nombre);
+            if (creado) {
+                agregarProductoCompra(creado);
+            }
+
+            // Reset y cerrar modal
+            setNuevoProducto({ nombre: '', codigo: '', precio_actual: 0, stock_actual: 0, descripcion: '' });
+            setModalProductoOpen(false);
+
+        } catch (error) {
+            console.error('Error creando producto', error);
+            notifications.show({ title: 'Error', message: 'No se pudo crear el producto', color: 'red' });
         }
     };
 
@@ -204,11 +320,33 @@ const GestionCompras = () => {
             setCompraSeleccionada(id);
             setModalDetallesOpen(true);
         } catch (error) {
+            const msg = error.response?.data?.message || error.response?.data?.error || error.message || 'Error al cargar detalles';
             notifications.show({
                 title: 'Error',
-                message: 'Error al cargar detalles',
+                message: msg,
                 color: 'red'
             });
+            console.error('Error verDetallesCompra:', error.response?.data || error.message);
+        }
+    };
+
+    // Descargar PDF de compra
+    const descargarPDFCompra = async (id) => {
+        try {
+            const res = await api.get(`/compras/${id}/reporte`, { responseType: 'blob' });
+            const blob = new Blob([res.data], { type: 'application/pdf' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `compra_${id}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+            notifications.show({ title: 'Descarga iniciada', message: `Descargando compra ${id}`, color: 'blue' });
+        } catch (error) {
+            console.error('Error descargando PDF', error);
+            notifications.show({ title: 'Error', message: 'No se pudo descargar el PDF', color: 'red' });
         }
     };
 
@@ -324,7 +462,7 @@ const GestionCompras = () => {
                             value={filtroProveedor}
                             onChange={(val) => {
                                 setFiltroProveedor(val);
-                                setTimeout(() => cargarDatos(), 100);
+                                cargarDatos();
                             }}
                         />
                     </Grid.Col>
@@ -436,8 +574,13 @@ const GestionCompras = () => {
                                                     <IconEye size={16} />
                                                 </ActionIcon>
                                             </Tooltip>
+
                                             <Tooltip label="Descargar">
-                                                <ActionIcon variant="subtle" color="gray">
+                                                <ActionIcon 
+                                                    variant="subtle" 
+                                                    color="gray"
+                                                    onClick={() => descargarPDFCompra(compra.id_compra)}
+                                                >
                                                     <IconDownload size={16} />
                                                 </ActionIcon>
                                             </Tooltip>
@@ -487,18 +630,26 @@ const GestionCompras = () => {
             >
                 <Stack gap="md">
                     {/* Selección de proveedor */}
-                    <Select 
-                        label="Proveedor"
-                        placeholder="Selecciona un proveedor"
-                        required
-                        data={proveedores.map(p => ({
-                            value: p.id_proveedor.toString(),
-                            label: p.nombre
-                        }))}
-                        value={nuevaCompra.proveedor_id}
-                        onChange={(val) => setNuevaCompra({...nuevaCompra, proveedor_id: val})}
-                        searchable
-                    />
+                    <Group align="flex-end" spacing="sm">
+                        <Select 
+                            label="Proveedor"
+                            placeholder="Selecciona un proveedor"
+                            required
+                            sx={{ flex: 1 }}
+                            data={proveedores.map(p => ({
+                                value: p.id_proveedor.toString(),
+                                label: p.nombre
+                            }))}
+                            value={nuevaCompra.proveedor_id}
+                            onChange={(val) => setNuevaCompra({...nuevaCompra, proveedor_id: val})}
+                            searchable
+                            clearable
+                        />
+
+                        <Button size="xs" onClick={() => setModalProveedorOpen(true)} leftSection={<IconPlus size={14} />}>
+                            Agregar
+                        </Button>
+                    </Group>
                     
                     {/* Información de factura */}
                     <Grid gutter="md">
@@ -535,19 +686,26 @@ const GestionCompras = () => {
                         </Group>
                         
                         {/* Lista de productos disponibles */}
-                        <Select 
-                            placeholder="Buscar producto para agregar"
-                            data={productos.map(p => ({
-                                value: p.id_producto.toString(),
-                                label: `${p.nombre} (Stock: ${p.stock_actual}) - Bs ${p.precio_actual}`
-                            }))}
-                            onChange={(val) => {
-                                const producto = productos.find(p => p.id_producto.toString() === val);
-                                if (producto) agregarProductoCompra(producto);
-                            }}
-                            searchable
-                            clearable
-                        />
+                        <Group align="flex-end" spacing="sm">
+                            <Select 
+                                placeholder="Buscar producto para agregar"
+                                sx={{ flex: 1 }}
+                                data={productos.map(p => ({
+                                    value: p.id_producto.toString(),
+                                    label: `${p.nombre} (Stock: ${p.stock_actual}) - Bs ${p.precio_actual}`
+                                }))}
+                                onChange={(val) => {
+                                    const producto = productos.find(p => p.id_producto.toString() === val);
+                                    if (producto) agregarProductoCompra(producto);
+                                }}
+                                searchable
+                                clearable
+                            />
+
+                            <Button size="xs" onClick={() => setModalProductoOpen(true)} leftSection={<IconPlus size={14} />}>
+                                Agregar
+                            </Button>
+                        </Group>
                         
                         {/* Lista de productos agregados */}
                         {productosCompra.length > 0 && (
@@ -639,6 +797,107 @@ const GestionCompras = () => {
                 </Stack>
             </Modal>
 
+            {/* Modal para crear proveedor desde Nueva Compra */}
+            <Modal
+                opened={modalProveedorOpen}
+                onClose={() => setModalProveedorOpen(false)}
+                title="Agregar nuevo proveedor"
+                size="md"
+            >
+                <Stack>
+                    <TextInput
+                        label="Nombre"
+                        placeholder="Nombre del proveedor"
+                        value={nuevoProveedor.nombre}
+                        onChange={(e) => setNuevoProveedor({...nuevoProveedor, nombre: e.target.value})}
+                        required
+                    />
+                    <TextInput
+                        label="Persona de contacto"
+                        placeholder="Nombre del contacto"
+                        value={nuevoProveedor.nombre_contacto}
+                        onChange={(e) => setNuevoProveedor({...nuevoProveedor, nombre_contacto: e.target.value})}
+                    />
+                    <TextInput
+                        label="Teléfono"
+                        placeholder="(591) 7xxxxxxx"
+                        value={nuevoProveedor.telefono}
+                        onChange={(e) => setNuevoProveedor({...nuevoProveedor, telefono: e.target.value})}
+                    />
+                    <TextInput
+                        label="Email"
+                        placeholder="contacto@proveedor.com"
+                        value={nuevoProveedor.email}
+                        onChange={(e) => setNuevoProveedor({...nuevoProveedor, email: e.target.value})}
+                    />
+                    <TextInput
+                        label="CI / NIT"
+                        placeholder="CI o NIT"
+                        value={nuevoProveedor.ci_nit}
+                        onChange={(e) => setNuevoProveedor({...nuevoProveedor, ci_nit: e.target.value})}
+                    />
+                    <Textarea
+                        label="Dirección / Observaciones"
+                        placeholder="Dirección o notas..."
+                        value={nuevoProveedor.descripcion}
+                        onChange={(e) => setNuevoProveedor({...nuevoProveedor, descripcion: e.target.value})}
+                    />
+
+                    <Group position="right">
+                        <Button variant="default" onClick={() => setModalProveedorOpen(false)}>Cancelar</Button>
+                        <Button color="blue" onClick={handleCrearProveedor}>Crear proveedor</Button>
+                    </Group>
+                </Stack>
+            </Modal>
+
+            {/* Modal para crear producto desde Nueva Compra */}
+            <Modal
+                opened={modalProductoOpen}
+                onClose={() => setModalProductoOpen(false)}
+                title="Agregar nuevo producto"
+                size="md"
+            >
+                <Stack>
+                    <TextInput
+                        label="Nombre"
+                        placeholder="Nombre del producto"
+                        value={nuevoProducto.nombre}
+                        onChange={(e) => setNuevoProducto({...nuevoProducto, nombre: e.target.value})}
+                        required
+                    />
+                    <TextInput
+                        label="Código"
+                        placeholder="Código interno"
+                        value={nuevoProducto.codigo}
+                        onChange={(e) => setNuevoProducto({...nuevoProducto, codigo: e.target.value})}
+                    />
+                    <NumberInput
+                        label="Precio"
+                        value={nuevoProducto.precio_actual}
+                        onChange={(val) => setNuevoProducto({...nuevoProducto, precio_actual: val || 0})}
+                        min={0}
+                        precision={2}
+                        parser={(value) => value?.replace(/[^0-9.]/g, '')}
+                    />
+                    <NumberInput
+                        label="Stock inicial"
+                        value={nuevoProducto.stock_actual}
+                        onChange={(val) => setNuevoProducto({...nuevoProducto, stock_actual: val || 0})}
+                        min={0}
+                    />
+                    <Textarea
+                        label="Descripción (opcional)"
+                        value={nuevoProducto.descripcion}
+                        onChange={(e) => setNuevoProducto({...nuevoProducto, descripcion: e.target.value})}
+                    />
+
+                    <Group position="right">
+                        <Button variant="default" onClick={() => setModalProductoOpen(false)}>Cancelar</Button>
+                        <Button color="blue" onClick={handleCrearProducto}>Crear producto</Button>
+                    </Group>
+                </Stack>
+            </Modal>
+
             {/* Modal para ver detalles */}
             <Modal 
                 opened={modalDetallesOpen} 
@@ -657,9 +916,14 @@ const GestionCompras = () => {
                                         {new Date(detallesCompra.compra.fecha).toLocaleString()}
                                     </Text>
                                 </div>
-                                <Badge color="green" size="lg">
-                                    Bs {parseFloat(detallesCompra.compra.total || 0).toFixed(2)}
-                                </Badge>
+                                <Group spacing="xs">
+                                    <Badge color="green" size="lg">
+                                        Bs {parseFloat(detallesCompra.compra.total || 0).toFixed(2)}
+                                    </Badge>
+                                    <Button size="xs" variant="light" onClick={() => descargarPDFCompra(detallesCompra.compra.id_compra)} leftIcon={<IconDownload size={14} />}>
+                                        Descargar
+                                    </Button>
+                                </Group>
                             </Group>
                             
                             <Grid>

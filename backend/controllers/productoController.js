@@ -4,9 +4,22 @@ const path = require('path');
 
 // Crear producto con imagen
 exports.createProducto = async (req, res) => {
-    const { nombre, descripcion, precio, stock_actual, categoria, stock_minimo } = req.body;
+    let { nombre, descripcion, stock_actual, categoria, stock_minimo } = req.body;
+    // aceptar `precio` o `precio_actual` desde el frontend
+    let precio = req.body.precio !== undefined ? req.body.precio : req.body.precio_actual;
     const { microempresa_id } = req.user;
-    
+
+    // Validaciones y normalizaciones para evitar parámetros undefined en SQL
+    if (!nombre || nombre.toString().trim() === '') {
+        return res.status(400).json({ error: 'El nombre del producto es requerido' });
+    }
+
+    precio = precio !== undefined && precio !== null && precio !== '' ? parseFloat(precio) : 0;
+    stock_actual = stock_actual !== undefined && stock_actual !== null && stock_actual !== '' ? parseInt(stock_actual) : 0;
+    categoria = categoria !== undefined && categoria !== null && categoria !== '' ? categoria : null;
+    stock_minimo = stock_minimo !== undefined && stock_minimo !== null && stock_minimo !== '' ? parseInt(stock_minimo) : 5;
+    descripcion = descripcion !== undefined && descripcion !== null && descripcion !== '' ? descripcion : null;
+
     // Determinar si será visible en el portal
     const visible_portal = stock_actual > 0 ? 1 : 0;
 
@@ -301,8 +314,9 @@ exports.deleteProducto = async (req, res) => {
         }
         
         try {
+            // Usar la columna id_producto (coherente con otros controladores)
             await db.execute(
-                'DELETE FROM inventario_movimiento WHERE producto_id = ?',
+                'DELETE FROM inventario_movimiento WHERE id_producto = ?',
                 [id]
             );
         } catch (error) {
