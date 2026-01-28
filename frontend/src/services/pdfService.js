@@ -1,368 +1,347 @@
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+// src/services/pdfService.js
+import { jsPDF } from 'jspdf';
 
 class PdfService {
-    /**
-     * Genera un comprobante de venta en PDF
-     */
-    static async generarComprobanteVenta(ventaData) {
-        return new Promise((resolve, reject) => {
-            try {
-                // Crear documento PDF
-                const pdf = new jsPDF('p', 'mm', 'a4');
-                const pageWidth = pdf.internal.pageSize.getWidth();
-                const pageHeight = pdf.internal.pageSize.getHeight();
-                const margin = 20;
-                let yPos = margin;
-
-                // Configuración de estilos
-                pdf.setFontSize(12);
-                pdf.setFont("helvetica", "normal");
-
-                // ===== ENCABEZADO =====
-                pdf.setFontSize(22);
-                pdf.setTextColor(0, 102, 204); // Azul
-                pdf.text("COMPROBANTE DE VENTA", pageWidth / 2, yPos, { align: 'center' });
-                yPos += 10;
-
-                pdf.setFontSize(14);
-                pdf.setTextColor(0, 0, 0); // Negro
-                pdf.text(`No. ${ventaData.pedido_id || '00001'}`, pageWidth / 2, yPos, { align: 'center' });
-                yPos += 15;
-
-                // Fecha
-                pdf.setFontSize(10);
-                pdf.text(`Fecha: ${new Date(ventaData.fecha || new Date()).toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
-                yPos += 5;
-
-                // Línea separadora
-                pdf.setDrawColor(200, 200, 200);
-                pdf.line(margin, yPos, pageWidth - margin, yPos);
-                yPos += 10;
-
-                // ===== INFORMACIÓN DE LA EMPRESA =====
-                pdf.setFontSize(12);
-                pdf.setFont("helvetica", "bold");
-                pdf.text("EMPRESA:", margin, yPos);
-                pdf.setFont("helvetica", "normal");
-                yPos += 7;
-
-                pdf.text(ventaData.empresa_nombre || "Microempresa", margin + 10, yPos);
-                if (ventaData.empresa_nit) {
-                    yPos += 6;
-                    pdf.text(`NIT: ${ventaData.empresa_nit}`, margin + 10, yPos);
-                }
-                if (ventaData.empresa_direccion) {
-                    yPos += 6;
-                    pdf.text(`Dirección: ${ventaData.empresa_direccion}`, margin + 10, yPos);
-                }
-                if (ventaData.empresa_telefono) {
-                    yPos += 6;
-                    pdf.text(`Teléfono: ${ventaData.empresa_telefono}`, margin + 10, yPos);
-                }
-                yPos += 10;
-
-                // ===== INFORMACIÓN DEL CLIENTE =====
-                pdf.setFont("helvetica", "bold");
-                pdf.text("CLIENTE:", margin, yPos);
-                pdf.setFont("helvetica", "normal");
-                yPos += 7;
-
-                pdf.text(ventaData.cliente_nombre || "Cliente no registrado", margin + 10, yPos);
-                if (ventaData.cliente_ci) {
-                    yPos += 6;
-                    pdf.text(`CI/NIT: ${ventaData.cliente_ci}`, margin + 10, yPos);
-                }
-                if (ventaData.cliente_email) {
-                    yPos += 6;
-                    pdf.text(`Email: ${ventaData.cliente_email}`, margin + 10, yPos);
-                }
-                if (ventaData.cliente_telefono) {
-                    yPos += 6;
-                    pdf.text(`Teléfono: ${ventaData.cliente_telefono}`, margin + 10, yPos);
-                }
-                yPos += 15;
-
-                // ===== TABLA DE PRODUCTOS =====
-                // Encabezado de la tabla
-                pdf.setFont("helvetica", "bold");
-                pdf.setFillColor(240, 240, 240);
-                pdf.rect(margin, yPos, pageWidth - 2 * margin, 8, 'F');
-                
-                pdf.text("Cant.", margin + 5, yPos + 6);
-                pdf.text("Descripción", margin + 25, yPos + 6);
-                pdf.text("P. Unit.", margin + 120, yPos + 6);
-                pdf.text("Subtotal", pageWidth - margin - 25, yPos + 6, { align: 'right' });
-                
-                yPos += 10;
-
-                // Productos
-                pdf.setFont("helvetica", "normal");
-                let totalProductos = 0;
-                
-                if (ventaData.productos && Array.isArray(ventaData.productos)) {
-                    ventaData.productos.forEach((producto, index) => {
-                        // Verificar si necesitamos nueva página
-                        if (yPos > pageHeight - 40) {
-                            pdf.addPage();
-                            yPos = margin;
-                        }
-
-                        const subtotal = producto.cantidad * producto.precio_unitario;
-                        totalProductos += subtotal;
-
-                        pdf.text(`${producto.cantidad}`, margin + 5, yPos);
-                        
-                        // Descripción (con ajuste de texto largo)
-                        let descripcion = producto.nombre || "Producto";
-                        if (descripcion.length > 40) {
-                            descripcion = descripcion.substring(0, 37) + "...";
-                        }
-                        pdf.text(descripcion, margin + 25, yPos);
-                        
-                        pdf.text(`Bs ${producto.precio_unitario.toFixed(2)}`, margin + 120, yPos);
-                        pdf.text(`Bs ${subtotal.toFixed(2)}`, pageWidth - margin - 5, yPos, { align: 'right' });
-                        
-                        yPos += 7;
-                    });
-                }
-
-                yPos += 10;
-
-                // ===== TOTALES =====
-                // Línea separadora
-                pdf.setDrawColor(0, 0, 0);
-                pdf.line(pageWidth - 100, yPos, pageWidth - margin, yPos);
-                yPos += 8;
-
-                // Total
-                pdf.setFont("helvetica", "bold");
-                pdf.text("TOTAL:", pageWidth - 80, yPos);
-                pdf.text(`Bs ${ventaData.total.toFixed(2)}`, pageWidth - margin - 5, yPos, { align: 'right' });
-                yPos += 8;
-
-                // Método de pago
-                pdf.setFont("helvetica", "normal");
-                pdf.text(`Método de pago: ${ventaData.metodo_pago || 'Efectivo'}`, pageWidth - margin - 5, yPos, { align: 'right' });
-                yPos += 10;
-
-                // ===== OBSERVACIONES =====
-                pdf.setFont("helvetica", "bold");
-                pdf.text("Observaciones:", margin, yPos);
-                yPos += 7;
-                pdf.setFont("helvetica", "normal");
-                pdf.text(ventaData.observaciones || "Gracias por su compra. No se aceptan devoluciones.", margin, yPos, { maxWidth: pageWidth - 2 * margin });
-                yPos += 15;
-
-                // ===== PIE DE PÁGINA =====
-                pdf.setFontSize(9);
-                pdf.setTextColor(128, 128, 128);
-                pdf.text("________________________________", pageWidth / 2, yPos, { align: 'center' });
-                yPos += 5;
-                pdf.text("Firma del Cliente", pageWidth / 2, yPos, { align: 'center' });
-                yPos += 10;
-
-                pdf.text("________________________________", margin + 40, yPos);
-                pdf.text("Firma del Vendedor", margin + 40, yPos + 5);
-                yPos += 15;
-
-                pdf.text("Documento generado electrónicamente", pageWidth / 2, pageHeight - 10, { align: 'center' });
-
-                // Guardar PDF
-                const fileName = `comprobante_${ventaData.pedido_id || Date.now()}.pdf`;
-                pdf.save(fileName);
-
-                resolve(fileName);
-            } catch (error) {
-                console.error('Error generando PDF:', error);
-                reject(error);
-            }
-        });
-    }
-
-    // Agregar este método a la clase PdfService
-    static async generarReporteCompra(compraData) {
-        return new Promise((resolve, reject) => {
-            try {
-                const pdf = new jsPDF('p', 'mm', 'a4');
-                const pageWidth = pdf.internal.pageSize.getWidth();
-                const pageHeight = pdf.internal.pageSize.getHeight();
-                const margin = 15;
-                let yPos = margin;
-
-                // Validar datos básicos
-                if (!compraData) {
-                    throw new Error('No se recibieron datos de la compra');
-                }
-
-                // Título
-                pdf.setFontSize(18);
-                pdf.setFont("helvetica", "bold");
-                pdf.text("REPORTE DE COMPRA", pageWidth / 2, yPos, { align: 'center' });
-                yPos += 8;
-
-                pdf.setFontSize(12);
-                pdf.text(`N° ${compraData.id_compra || 'N/A'}`, pageWidth / 2, yPos, { align: 'center' });
-                yPos += 15;
-
-                // Información de la empresa
-                pdf.setFontSize(12);
-                pdf.setFont("helvetica", "bold");
-                pdf.text("EMPRESA:", margin, yPos);
-                pdf.setFont("helvetica", "normal");
-                yPos += 7;
-
-                pdf.text(compraData.empresa_nombre || "Microempresa", margin + 10, yPos);
-                if (compraData.empresa_nit) {
-                    yPos += 6;
-                    pdf.text(`NIT: ${compraData.empresa_nit}`, margin + 10, yPos);
-                }
-                if (compraData.empresa_direccion) {
-                    yPos += 6;
-                    pdf.text(`Dirección: ${compraData.empresa_direccion}`, margin + 10, yPos);
-                }
-                if (compraData.empresa_telefono) {
-                    yPos += 6;
-                    pdf.text(`Teléfono: ${compraData.empresa_telefono}`, margin + 10, yPos);
-                }
-                yPos += 10;
-
-                // Fecha y estado
-                const fecha = compraData.fecha ? new Date(compraData.fecha).toLocaleDateString() : 'N/A';
-                pdf.text(`Fecha: ${fecha}`, margin, yPos);
-                yPos += 6;
-                pdf.text(`Estado: ${compraData.estado || 'N/A'}`, margin, yPos);
-                yPos += 15;
-
-                // Tabla de productos
-                pdf.setFont("helvetica", "bold");
-                pdf.setFillColor(240, 240, 240);
-                pdf.rect(margin, yPos, pageWidth - 2 * margin, 8, 'F');
-                
-                pdf.text("Cant.", margin + 5, yPos + 6);
-                pdf.text("Producto", margin + 25, yPos + 6);
-                pdf.text("Proveedor", margin + 90, yPos + 6);
-                pdf.text("P. Unit.", margin + 135, yPos + 6);
-                pdf.text("Subtotal", pageWidth - margin - 5, yPos + 6, { align: 'right' });
-                
-                yPos += 12;
-
-                // Productos
-                pdf.setFont("helvetica", "normal");
-                let totalCalculado = 0;
-                
-                if (compraData.productos && Array.isArray(compraData.productos) && compraData.productos.length > 0) {
-                    compraData.productos.forEach(producto => {
-                        if (yPos > pageHeight - 40) {
-                            pdf.addPage();
-                            yPos = margin;
-                        }
-
-                        // Validar y obtener valores seguros
-                        const cantidad = producto.cantidad || 0;
-                        const precioUnitario = parseFloat(producto.precio_unitario) || 0;
-                        const subtotal = parseFloat(producto.subtotal) || (cantidad * precioUnitario);
-                        
-                        totalCalculado += subtotal;
-
-                        pdf.text(`${cantidad}`, margin + 5, yPos);
-                        
-                        // Truncar texto largo
-                        const nombreProducto = (producto.nombre || 'Producto').substring(0, 30);
-                        const nombreProveedor = (producto.proveedor || 'N/A').substring(0, 20);
-                        
-                        pdf.text(nombreProducto, margin + 25, yPos);
-                        pdf.text(nombreProveedor, margin + 90, yPos);
-                        pdf.text(`Bs ${precioUnitario.toFixed(2)}`, margin + 135, yPos);
-                        pdf.text(`Bs ${subtotal.toFixed(2)}`, pageWidth - margin - 5, yPos, { align: 'right' });
-                        
-                        yPos += 7;
-                    });
-                } else {
-                    pdf.text("No hay productos en esta compra", margin + 25, yPos);
-                    yPos += 7;
-                }
-
-                yPos += 10;
-
-                // Total
-                pdf.setDrawColor(0, 0, 0);
-                pdf.line(pageWidth - 100, yPos, pageWidth - margin, yPos);
-                yPos += 8;
-
-                // Usar el total de la base de datos o el calculado
-                const totalFinal = parseFloat(compraData.total) || totalCalculado;
-
-                pdf.setFont("helvetica", "bold");
-                pdf.text("TOTAL:", pageWidth - 80, yPos);
-                pdf.text(`Bs ${totalFinal.toFixed(2)}`, pageWidth - margin - 5, yPos, { align: 'right' });
-                yPos += 15;
-
-                // Pie de página
-                pdf.setFontSize(9);
-                pdf.setTextColor(128, 128, 128);
-                pdf.text("Documento generado electrónicamente", pageWidth / 2, pageHeight - 10, { align: 'center' });
-
-                // Guardar PDF
-                const fileName = `compra_${compraData.id_compra || Date.now()}.pdf`;
-                pdf.save(fileName);
-
-                resolve(fileName);
-            } catch (error) {
-                console.error('Error generando PDF de compra:', error);
-                reject(error);
-            }
-        });
-    }
-    /**
-     * Genera PDF desde un elemento HTML (para plantillas más complejas)
-     */
-    static async generarPDFDesdeHTML(elementId, fileName = 'comprobante.pdf') {
-        const element = document.getElementById(elementId);
-        if (!element) {
-            throw new Error(`Elemento con ID ${elementId} no encontrado`);
-        }
-
+    // ========== COMPROBANTE DE VENTA ==========
+    static generarComprobanteVenta(ventaData) {
         try {
-            const canvas = await html2canvas(element, {
-                scale: 2,
-                useCORS: true,
-                logging: false
+            console.log("📄 Generando PDF de venta...");
+            
+            const doc = new jsPDF();
+            
+            // ========== CABECERA ==========
+            doc.setFontSize(20);
+            doc.setTextColor(0, 51, 102); // Azul oscuro
+            doc.text('FACTURA DE VENTA', 105, 20, { align: 'center' });
+            
+            doc.setFontSize(10);
+            doc.setTextColor(0, 0, 0);
+            doc.text(`Nº: ${ventaData.pedido_id || '0001'}`, 20, 35);
+            doc.text(`Fecha: ${new Date(ventaData.fecha).toLocaleDateString()}`, 160, 35);
+            doc.text(`Hora: ${new Date(ventaData.fecha).toLocaleTimeString()}`, 160, 40);
+            
+            // ========== INFORMACIÓN EMPRESA ==========
+            doc.setFontSize(12);
+            doc.setTextColor(0, 51, 102);
+            doc.text('EMPRESA:', 20, 55);
+            
+            doc.setFontSize(10);
+            doc.setTextColor(0, 0, 0);
+            doc.text(ventaData.empresa_nombre || 'Mi Microempresa', 20, 60);
+            doc.text(`NIT: ${ventaData.empresa_nit || '123456789'}`, 20, 65);
+            doc.text(`Dirección: ${ventaData.empresa_direccion || 'Av. Principal #123'}`, 20, 70);
+            doc.text(`Teléfono: ${ventaData.empresa_telefono || '+591 70000000'}`, 20, 75);
+            
+            // ========== INFORMACIÓN CLIENTE ==========
+            doc.setFontSize(12);
+            doc.setTextColor(0, 51, 102);
+            doc.text('CLIENTE:', 120, 55);
+            
+            doc.setFontSize(10);
+            doc.setTextColor(0, 0, 0);
+            doc.text(ventaData.cliente_nombre || 'Cliente General', 120, 60);
+            
+            let clienteY = 65;
+            if (ventaData.cliente_ci) {
+                doc.text(`CI/NIT: ${ventaData.cliente_ci}`, 120, clienteY);
+                clienteY += 5;
+            }
+            if (ventaData.cliente_telefono) {
+                doc.text(`Tel: ${ventaData.cliente_telefono}`, 120, clienteY);
+                clienteY += 5;
+            }
+            if (ventaData.cliente_email) {
+                doc.text(`Email: ${ventaData.cliente_email}`, 120, clienteY);
+            }
+            
+            // Línea separadora
+            doc.setDrawColor(200, 200, 200);
+            doc.line(20, 85, 190, 85);
+            
+            // ========== TABLA DE PRODUCTOS ==========
+            let y = 95;
+            
+            // Encabezado de la tabla
+            doc.setFontSize(11);
+            doc.setTextColor(255, 255, 255);
+            doc.setFillColor(0, 51, 102);
+            doc.rect(20, y - 5, 170, 7, 'F');
+            
+            doc.text('Descripción', 25, y);
+            doc.text('Cant.', 120, y);
+            doc.text('Precio', 140, y);
+            doc.text('Total', 170, y);
+            
+            y += 10;
+            doc.setTextColor(0, 0, 0);
+            
+            // Productos
+            let totalGeneral = 0;
+            ventaData.productos.forEach((producto, index) => {
+                // Fondo alternado para mejor lectura
+                if (index % 2 === 0) {
+                    doc.setFillColor(240, 240, 240);
+                    doc.rect(20, y - 2, 170, 7, 'F');
+                }
+                
+                doc.setFontSize(10);
+                
+                // Nombre del producto
+                const nombre = producto.nombre || 'Producto';
+                const nombreCorto = nombre.length > 40 ? nombre.substring(0, 37) + '...' : nombre;
+                doc.text(`${index + 1}. ${nombreCorto}`, 25, y);
+                
+                // Cantidad
+                doc.text(producto.cantidad.toString(), 120, y);
+                
+                // Precio unitario
+                const precioUnitario = producto.precio_unitario || producto.precio || 0;
+                doc.text(`Bs ${precioUnitario.toFixed(2)}`, 140, y);
+                
+                // Subtotal
+                const subtotal = producto.subtotal || (producto.cantidad * precioUnitario);
+                doc.text(`Bs ${subtotal.toFixed(2)}`, 170, y);
+                
+                totalGeneral += subtotal;
+                y += 7;
+                
+                // Si hay muchos productos, crear nueva página
+                if (y > 250 && index < ventaData.productos.length - 1) {
+                    doc.addPage();
+                    y = 20;
+                }
             });
-
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const pageWidth = pdf.internal.pageSize.getWidth();
-            const pageHeight = pdf.internal.pageSize.getHeight();
-
-            // Calcular dimensiones para que la imagen se ajuste a la página
-            const imgWidth = canvas.width;
-            const imgHeight = canvas.height;
-            const ratio = imgWidth / imgHeight;
-            const pdfWidth = pageWidth - 20;
-            const pdfHeight = pdfWidth / ratio;
-
-            // Agregar imagen al PDF
-            pdf.addImage(imgData, 'PNG', 10, 10, pdfWidth, pdfHeight);
-            pdf.save(fileName);
-
+            
+            // Línea de total
+            doc.setDrawColor(0, 0, 0);
+            doc.setLineWidth(0.5);
+            doc.line(140, y + 5, 190, y + 5);
+            
+            // ========== TOTALES ==========
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text('TOTAL:', 140, y + 15);
+            doc.text(`Bs ${totalGeneral.toFixed(2)}`, 170, y + 15);
+            
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'normal');
+            doc.text(`Método de pago: ${ventaData.metodo_pago || 'Efectivo'}`, 20, y + 25);
+            
+            if (ventaData.vendedor) {
+                doc.text(`Vendedor: ${ventaData.vendedor}`, 20, y + 30);
+            }
+            
+            // ========== PIE DE PÁGINA ==========
+            doc.setFontSize(8);
+            doc.setTextColor(100, 100, 100);
+            doc.text('Gracias por su compra', 105, y + 45, { align: 'center' });
+            doc.text('Comprobante válido por 7 días', 105, y + 50, { align: 'center' });
+            
+            // Firmas
+            const firmaY = y + 70;
+            doc.setDrawColor(0);
+            doc.setLineWidth(0.5);
+            doc.line(30, firmaY, 80, firmaY);
+            doc.line(120, firmaY, 170, firmaY);
+            
+            doc.setFontSize(8);
+            doc.text('Firma del Cliente', 55, firmaY + 5, { align: 'center' });
+            doc.text('Firma del Vendedor', 145, firmaY + 5, { align: 'center' });
+            
+            // ========== GUARDAR PDF ==========
+            const fileName = `venta-${ventaData.pedido_id || Date.now()}.pdf`;
+            doc.save(fileName);
+            
+            console.log("✅ PDF de venta generado:", fileName);
             return fileName;
+            
         } catch (error) {
-            console.error('Error generando PDF desde HTML:', error);
-            throw error;
+            console.error("❌ Error generando PDF de venta:", error);
+            return null;
         }
     }
 
-    /**
-     * Genera una factura más formal
-     */
-    static async generarFactura(ventaData) {
-        // Similar a generarComprobanteVenta pero con más detalles fiscales
-        return this.generarComprobanteVenta({
-            ...ventaData,
-            tipo: 'FACTURA',
-            leyenda: `FACTURA LEGAL N° ${ventaData.pedido_id}`
-        });
+    // ========== COMPROBANTE DE COMPRA ==========
+    static generarComprobanteCompra(compraData) {
+        try {
+            console.log("📄 Generando PDF de compra...", compraData);
+            
+            const doc = new jsPDF();
+            
+            // ========== CABECERA ==========
+            doc.setFontSize(20);
+            doc.setTextColor(0, 102, 51); // Verde oscuro para compras
+            doc.text('COMPROBANTE DE COMPRA', 105, 20, { align: 'center' });
+            
+            doc.setFontSize(10);
+            doc.setTextColor(0, 0, 0);
+            doc.text(`Nº Compra: ${compraData.id_compra || '0001'}`, 20, 35);
+            doc.text(`Factura: ${compraData.numero_factura || 'Sin número'}`, 110, 35);
+            doc.text(`Fecha: ${new Date(compraData.fecha).toLocaleDateString()}`, 160, 35);
+            doc.text(`Hora: ${new Date(compraData.fecha).toLocaleTimeString()}`, 160, 40);
+            
+            // ========== INFORMACIÓN EMPRESA ==========
+            doc.setFontSize(12);
+            doc.setTextColor(0, 102, 51);
+            doc.text('EMPRESA COMPRADORA:', 20, 55);
+            
+            doc.setFontSize(10);
+            doc.setTextColor(0, 0, 0);
+            doc.text(compraData.empresa_nombre || 'Mi Microempresa', 20, 60);
+            doc.text(`NIT: ${compraData.empresa_nit || '123456789'}`, 20, 65);
+            doc.text(`Dirección: ${compraData.empresa_direccion || 'Av. Principal #123'}`, 20, 70);
+            doc.text(`Teléfono: ${compraData.empresa_telefono || '+591 70000000'}`, 20, 75);
+            
+            // ========== INFORMACIÓN PROVEEDOR ==========
+            doc.setFontSize(12);
+            doc.setTextColor(0, 102, 51);
+            doc.text('PROVEEDOR:', 120, 55);
+            
+            doc.setFontSize(10);
+            doc.setTextColor(0, 0, 0);
+            doc.text(compraData.proveedor_nombre || 'Proveedor General', 120, 60);
+            
+            let proveedorY = 65;
+            if (compraData.proveedor_nit) {
+                doc.text(`NIT: ${compraData.proveedor_nit}`, 120, proveedorY);
+                proveedorY += 5;
+            }
+            if (compraData.proveedor_telefono) {
+                doc.text(`Tel: ${compraData.proveedor_telefono}`, 120, proveedorY);
+                proveedorY += 5;
+            }
+            if (compraData.proveedor_email) {
+                doc.text(`Email: ${compraData.proveedor_email}`, 120, proveedorY);
+                proveedorY += 5;
+            }
+            if (compraData.proveedor_direccion) {
+                doc.text(`Dirección: ${compraData.proveedor_direccion}`, 120, proveedorY);
+            }
+            
+            // Línea separadora
+            doc.setDrawColor(200, 200, 200);
+            doc.line(20, 90, 190, 90);
+            
+            // ========== TABLA DE PRODUCTOS ==========
+            let y = 100;
+            
+            // Encabezado de la tabla
+            doc.setFontSize(11);
+            doc.setTextColor(255, 255, 255);
+            doc.setFillColor(0, 102, 51);
+            doc.rect(20, y - 5, 170, 7, 'F');
+            
+            doc.text('Producto', 25, y);
+            doc.text('Proveedor', 80, y);
+            doc.text('Cant.', 140, y);
+            doc.text('Precio', 150, y);
+            doc.text('Subtotal', 170, y);
+            
+            y += 10;
+            doc.setTextColor(0, 0, 0);
+            
+            // Productos
+            let totalGeneral = 0;
+            compraData.productos.forEach((producto, index) => {
+                // Fondo alternado para mejor lectura
+                if (index % 2 === 0) {
+                    doc.setFillColor(240, 248, 240);
+                    doc.rect(20, y - 2, 170, 7, 'F');
+                }
+                
+                doc.setFontSize(10);
+                
+                // Nombre del producto
+                const nombre = producto.nombre || 'Producto';
+                const nombreCorto = nombre.length > 25 ? nombre.substring(0, 22) + '...' : nombre;
+                doc.text(`${index + 1}. ${nombreCorto}`, 25, y);
+                
+                // Proveedor
+                const proveedor = producto.proveedor || compraData.proveedor_nombre || 'Proveedor';
+                const proveedorCorto = proveedor.length > 20 ? proveedor.substring(0, 17) + '...' : proveedor;
+                doc.text(proveedorCorto, 80, y);
+                
+                // Cantidad
+                doc.text(producto.cantidad.toString(), 140, y);
+                
+                // Precio unitario
+                const precioUnitario = producto.precio_unitario || producto.precio || 0;
+                doc.text(`Bs ${precioUnitario.toFixed(2)}`, 150, y);
+                
+                // Subtotal
+                const subtotal = producto.subtotal || (producto.cantidad * precioUnitario);
+                doc.text(`Bs ${subtotal.toFixed(2)}`, 170, y);
+                
+                totalGeneral += subtotal;
+                y += 7;
+                
+                // Si hay muchos productos, crear nueva página
+                if (y > 250 && index < compraData.productos.length - 1) {
+                    doc.addPage();
+                    y = 20;
+                }
+            });
+            
+            // Línea de total
+            doc.setDrawColor(0, 0, 0);
+            doc.setLineWidth(0.5);
+            doc.line(140, y + 5, 190, y + 5);
+            
+            // ========== INFORMACIÓN ADICIONAL ==========
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'normal');
+            
+            // Método de pago
+            doc.text(`Método de pago: ${compraData.tipo_pago || 'No especificado'}`, 20, y + 15);
+            
+            // Observaciones
+            if (compraData.observaciones) {
+                doc.text(`Observaciones: ${compraData.observaciones}`, 20, y + 20);
+                y += 10;
+            }
+            
+            // Estado
+            doc.text(`Estado: ${compraData.estado || 'Completada'}`, 20, y + 25);
+            
+            // ========== TOTALES ==========
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'bold');
+            doc.text('TOTAL COMPRA:', 140, y + 35);
+            doc.text(`Bs ${(compraData.total || totalGeneral).toFixed(2)}`, 170, y + 35);
+            
+            // ========== PIE DE PÁGINA ==========
+            doc.setFontSize(8);
+            doc.setTextColor(100, 100, 100);
+            doc.text('Comprobante de ingreso de inventario', 105, y + 50, { align: 'center' });
+            doc.text('Documento interno de la empresa', 105, y + 55, { align: 'center' });
+            
+            // Firmas
+            const firmaY = y + 70;
+            doc.setDrawColor(0);
+            doc.setLineWidth(0.5);
+            doc.line(30, firmaY, 80, firmaY);
+            doc.line(120, firmaY, 170, firmaY);
+            
+            doc.setFontSize(8);
+            doc.text('Responsable de Compras', 55, firmaY + 5, { align: 'center' });
+            doc.text('Recibido por', 145, firmaY + 5, { align: 'center' });
+            
+            // Usuario que registró
+            if (compraData.usuario_nombre) {
+                doc.text(`Registrado por: ${compraData.usuario_nombre}`, 20, firmaY + 15);
+            }
+            
+            // ========== GUARDAR PDF ==========
+            const fileName = `compra-${compraData.id_compra || Date.now()}.pdf`;
+            doc.save(fileName);
+            
+            console.log("✅ PDF de compra generado:", fileName);
+            return fileName;
+            
+        } catch (error) {
+            console.error("❌ Error generando PDF de compra:", error);
+            return null;
+        }
     }
 }
 

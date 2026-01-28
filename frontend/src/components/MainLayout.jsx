@@ -33,10 +33,10 @@ export function MainLayout({ children }) {
       { label: 'Dashboard', icon: IconHome2, path: '/dashboard' },
     ];
 
-    // 2. Rutas de Operación (Visibles para todos: Vendedor, Admin, SuperAdmin)
-    items.push({ label: 'Clientes', icon: IconAddressBook, path: '/clientes' });
-    items.push({ label: 'Inventario', icon: IconPackage, path: '/inventario' });
-    items.push({ label: 'Ventas', icon: IconShoppingCart, path: '/ventas' });
+    if (['vendedor', 'administrador'].includes(user?.rol)) {
+        items.push({ label: 'Ventas', icon: IconShoppingCart, path: '/ventas' });
+        items.push({ label: 'Clientes', icon: IconAddressBook, path: '/clientes' });
+    }
 
     // 3. Rutas de Administración (Solo Admin y SuperAdmin)
     if (['administrador', 'super_admin'].includes(user?.rol)) {

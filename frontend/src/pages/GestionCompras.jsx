@@ -2,22 +2,23 @@ import {
     Container, Title, Text, Card, Table, Button, Group, Badge, Modal,
     TextInput, Select, Stack, ActionIcon, Tooltip, Center, Loader,
     Paper, SimpleGrid, NumberInput, Alert, Divider, Tabs, ScrollArea,
-    Grid, Textarea, Pagination, ThemeIcon, Box
+    Grid, Textarea, Pagination, ThemeIcon, Box, Input
 } from '@mantine/core';
 import { 
     IconPlus, IconSearch, IconFilter, IconRefresh, IconEye,
     IconTrash, IconCheck, IconX, IconShoppingBag, IconTrendingUp,
     IconPackage, IconBuildingStore, IconCalendar, IconReceipt,
-    IconCash, IconArrowRight, IconDownload, IconChartBar,
-    IconListDetails, IconAlertCircle, IconInfoCircle, IconDeviceFloppy
+    IconCash, IconArrowRight, IconDownload, IconChartBar, IconFileInvoice,
+    IconListDetails, IconAlertCircle, IconInfoCircle, IconDeviceFloppy,
+    IconReceipt2, IconBarcode, IconCopy, IconRepeat
 } from '@tabler/icons-react';
 import { useState, useEffect, useRef } from 'react';
 import { notifications } from '@mantine/notifications';
 import { getCurrentUser } from '../services/auth';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios'; 
 import PdfService from '../services/pdfService';
+import dayjs from 'dayjs';
 
 const GestionCompras = () => {
     const user = getCurrentUser();
@@ -56,7 +57,6 @@ const GestionCompras = () => {
 
     const [nuevoProducto, setNuevoProducto] = useState({
         nombre: '',
-        codigo: '',
         precio_actual: 0,
         stock_actual: 0,
         descripcion: ''
@@ -73,44 +73,100 @@ const GestionCompras = () => {
     const [paginaActual, setPaginaActual] = useState(1);
     const itemsPorPagina = 10;
 
+    // Contador para número de factura automático
+    const [ultimoNumeroFactura, setUltimoNumeroFactura] = useState(0);
+
     // Cargar datos iniciales
     useEffect(() => {
         cargarDatos();
+        generarNumeroFacturaAutomatico();
     }, []);
 
-    // Debounce refs
-    const searchTimeout = useRef(null);
-    const dateTimeout = useRef(null);
+    // Generar número de factura automático
+    const generarNumeroFacturaAutomatico = async () => {
+        try {
+            // Buscar la última compra para obtener el último número
+            const response = await api.get('/compras?limit=1&orderBy=fecha_desc');
+            const ultimasCompras = response.data || [];
+            
+            let siguienteNumero = 1;
+            
+            if (ultimasCompras.length > 0) {
+                // Extraer número de factura del último registro
+                const ultimaFactura = ultimasCompras[0].numero_factura;
+                if (ultimaFactura && ultimaFactura.includes('-')) {
+                    const partes = ultimaFactura.split('-');
+                    const ultimoNumero = parseInt(partes[partes.length - 1]);
+                    if (!isNaN(ultimoNumero)) {
+                        siguienteNumero = ultimoNumero + 1;
+                    }
+                }
+            }
+            
+            // Formato: FACT-YYYYMMDD-001
+            const fechaActual = new Date();
+            const year = fechaActual.getFullYear();
+            const month = String(fechaActual.getMonth() + 1).padStart(2, '0');
+            const day = String(fechaActual.getDate()).padStart(2, '0');
+            const numeroFormateado = String(siguienteNumero).padStart(3, '0');
+            
+            const facturaAuto = `FACT-${year}${month}${day}-${numeroFormateado}`;
+            
+            setNuevaCompra(prev => ({
+                ...prev,
+                numero_factura: facturaAuto
+            }));
+            
+            setUltimoNumeroFactura(siguienteNumero);
+            
+        } catch (error) {
+            console.error('Error generando número de factura:', error);
+            // Generar número por defecto
+            const fechaActual = new Date();
+            const facturaDefault = `FACT-${fechaActual.getFullYear()}${String(fechaActual.getMonth() + 1).padStart(2, '0')}${String(fechaActual.getDate()).padStart(2, '0')}-001`;
+            setNuevaCompra(prev => ({
+                ...prev,
+                numero_factura: facturaDefault
+            }));
+        }
+    };
 
-    // Auto-refresh cuando cambia la búsqueda (debounced)
-    useEffect(() => {
-        if (searchTimeout.current) clearTimeout(searchTimeout.current);
-        searchTimeout.current = setTimeout(() => {
-            cargarDatos();
-        }, 500);
-        return () => clearTimeout(searchTimeout.current);
-    }, [busqueda]);
+    // Función para regenerar número de factura
+    const regenerarNumeroFactura = () => {
+        const fechaActual = new Date();
+        const year = fechaActual.getFullYear();
+        const month = String(fechaActual.getMonth() + 1).padStart(2, '0');
+        const day = String(fechaActual.getDate()).padStart(2, '0');
+        const nuevoNumero = (ultimoNumeroFactura + 1).toString().padStart(3, '0');
+        
+        const nuevaFactura = `FACT-${year}${month}${day}-${nuevoNumero}`;
+        
+        setNuevaCompra(prev => ({
+            ...prev,
+            numero_factura: nuevaFactura
+        }));
+        
+        setUltimoNumeroFactura(prev => prev + 1);
+    };
 
-    // Auto-refresh cuando cambian fechas (debounced)
-    useEffect(() => {
-        if (dateTimeout.current) clearTimeout(dateTimeout.current);
-        dateTimeout.current = setTimeout(() => {
-            cargarDatos();
-        }, 300);
-        return () => clearTimeout(dateTimeout.current);
-    }, [fechaInicio, fechaFin]);
-
+    // Cargar datos
     const cargarDatos = async () => {
         setLoading(true);
         try {
-            // Cargar compras
-            const params = new URLSearchParams();
-            if (filtroProveedor !== 'todos') params.append('id_proveedor', filtroProveedor);
-            if (fechaInicio) params.append('fecha_inicio', fechaInicio);
-            if (fechaFin) params.append('fecha_fin', fechaFin);
-            if (busqueda) params.append('busqueda', busqueda);
-
-            const resCompras = await api.get(`/compras?${params.toString()}`);
+            // Cargar compras con filtros
+            let url = '/compras';
+            const params = [];
+            
+            if (filtroProveedor !== 'todos') params.push(`proveedor_id=${filtroProveedor}`);
+            if (fechaInicio) params.push(`fecha_inicio=${fechaInicio}`);
+            if (fechaFin) params.push(`fecha_fin=${fechaFin}`);
+            if (busqueda) params.push(`search=${encodeURIComponent(busqueda)}`);
+            
+            if (params.length > 0) {
+                url += `?${params.join('&')}`;
+            }
+            
+            const resCompras = await api.get(url);
             setCompras(resCompras.data || []);
             
             // Cargar proveedores
@@ -118,7 +174,7 @@ const GestionCompras = () => {
             setProveedores(resProveedores.data || []);
             
             // Cargar productos
-            const resProductos = await api.get('/compras/productos');
+            const resProductos = await api.get('/productos/empresa');
             setProductos(resProductos.data || []);
             
         } catch (error) {
@@ -133,7 +189,7 @@ const GestionCompras = () => {
         }
     };
 
-    // Handler para crear proveedor desde el modal
+    // Handler para crear proveedor
     const handleCrearProveedor = async () => {
         if (!nuevoProveedor.nombre || nuevoProveedor.nombre.trim() === '') {
             notifications.show({ title: 'Error', message: 'El nombre es requerido', color: 'red' });
@@ -146,29 +202,42 @@ const GestionCompras = () => {
             notifications.show({
                 title: '✅ Proveedor creado',
                 message: 'Proveedor creado correctamente',
-                color: 'green',
-                icon: <IconCheck size={18} />
+                color: 'green'
             });
 
-            // Recargar proveedores y seleccionar el nuevo (busca por nombre)
+            // Recargar proveedores
             const resProv = await api.get('/proveedores/select');
             setProveedores(resProv.data || []);
-            const creado = (resProv.data || []).find(p => p.nombre === nuevoProveedor.nombre);
-            if (creado) {
-                setNuevaCompra({...nuevaCompra, proveedor_id: creado.id_proveedor.toString()});
+            
+            // Seleccionar el nuevo proveedor automáticamente
+            const nuevo = resProv.data.find(p => p.nombre === nuevoProveedor.nombre);
+            if (nuevo) {
+                setNuevaCompra({...nuevaCompra, proveedor_id: nuevo.id_proveedor.toString()});
             }
 
             // Reset y cerrar modal
-            setNuevoProveedor({ nombre: '', nombre_contacto: '', direccion: '', telefono: '', email: '', ci_nit: '', descripcion: '' });
+            setNuevoProveedor({ 
+                nombre: '', 
+                nombre_contacto: '', 
+                direccion: '', 
+                telefono: '', 
+                email: '', 
+                ci_nit: '', 
+                descripcion: '' 
+            });
             setModalProveedorOpen(false);
 
         } catch (error) {
             console.error('Error creando proveedor', error);
-            notifications.show({ title: 'Error', message: 'No se pudo crear el proveedor', color: 'red' });
+            notifications.show({ 
+                title: 'Error', 
+                message: 'No se pudo crear el proveedor', 
+                color: 'red' 
+            });
         }
     };
 
-    // Handler para crear producto desde el modal
+    // Handler para crear producto
     const handleCrearProducto = async () => {
         if (!nuevoProducto.nombre || nuevoProducto.nombre.trim() === '') {
             notifications.show({ title: 'Error', message: 'El nombre del producto es requerido', color: 'red' });
@@ -176,32 +245,47 @@ const GestionCompras = () => {
         }
 
         try {
-            await api.post('/productos', nuevoProducto);
+            const productoData = {
+                nombre: nuevoProducto.nombre,
+                precio: nuevoProducto.precio_actual,
+                stock_actual: nuevoProducto.stock_actual,
+                descripcion: nuevoProducto.descripcion
+            };
+
+            await api.post('/productos', productoData);
 
             notifications.show({
                 title: '✅ Producto creado',
                 message: 'Producto creado correctamente',
-                color: 'green',
-                icon: <IconCheck size={18} />
+                color: 'green'
             });
 
             // Recargar productos
-            const resProd = await api.get('/compras/productos');
+            const resProd = await api.get('/productos/empresa');
             setProductos(resProd.data || []);
 
-            // Intentar seleccionar/añadir el producto recién creado por nombre
-            const creado = (resProd.data || []).find(p => p.nombre === nuevoProducto.nombre);
-            if (creado) {
-                agregarProductoCompra(creado);
+            // Agregar automáticamente a la compra
+            const nuevo = resProd.data.find(p => p.nombre === nuevoProducto.nombre);
+            if (nuevo) {
+                agregarProductoCompra(nuevo);
             }
 
             // Reset y cerrar modal
-            setNuevoProducto({ nombre: '', codigo: '', precio_actual: 0, stock_actual: 0, descripcion: '' });
+            setNuevoProducto({ 
+                nombre: '', 
+                precio_actual: 0, 
+                stock_actual: 0, 
+                descripcion: '' 
+            });
             setModalProductoOpen(false);
 
         } catch (error) {
             console.error('Error creando producto', error);
-            notifications.show({ title: 'Error', message: 'No se pudo crear el producto', color: 'red' });
+            notifications.show({ 
+                title: 'Error', 
+                message: 'No se pudo crear el producto', 
+                color: 'red' 
+            });
         }
     };
 
@@ -224,8 +308,9 @@ const GestionCompras = () => {
                     id_producto: producto.id_producto,
                     producto_nombre: producto.nombre,
                     cantidad: 1,
-                    precio_unitario: producto.precio_actual || 0,
-                    stock_actual: producto.stock_actual
+                    precio_unitario: producto.precio || 0,
+                    stock_actual: producto.stock_actual,
+                    stock_minimo: producto.stock_minimo
                 }
             ]);
         }
@@ -248,7 +333,7 @@ const GestionCompras = () => {
     // Calcular total de la compra
     const calcularTotalCompra = () => {
         return productosCompra.reduce((total, producto) => {
-            return total + (producto.cantidad * producto.precio_unitario);
+            return total + (producto.cantidad * (producto.precio_unitario || 0));
         }, 0);
     };
 
@@ -272,9 +357,23 @@ const GestionCompras = () => {
             return;
         }
 
+        // Validar que todos los productos tengan precio válido
+        const productosSinPrecio = productosCompra.filter(p => !p.precio_unitario || p.precio_unitario <= 0);
+        if (productosSinPrecio.length > 0) {
+            notifications.show({
+                title: 'Error',
+                message: 'Algunos productos no tienen precio válido',
+                color: 'red'
+            });
+            return;
+        }
+
         try {
             const compraData = {
-                ...nuevaCompra,
+                proveedor_id: nuevaCompra.proveedor_id,
+                numero_factura: nuevaCompra.numero_factura,
+                tipo_pago: nuevaCompra.tipo_pago,
+                observaciones: nuevaCompra.observaciones || '',
                 productos: productosCompra.map(p => ({
                     id_producto: p.id_producto,
                     cantidad: p.cantidad,
@@ -282,35 +381,85 @@ const GestionCompras = () => {
                 }))
             };
 
-            await api.post('/compras', compraData);
+            console.log('Enviando datos de compra:', compraData);
+
+            const response = await api.post('/compras', compraData);
             
             notifications.show({
                 title: '✅ Compra registrada',
                 message: 'La compra se registró exitosamente y el stock se actualizó',
                 color: 'green',
-                icon: <IconCheck size={20} />
+                autoClose: 3000
             });
 
-            // Limpiar formulario
-            setNuevaCompra({
-                proveedor_id: '',
-                numero_factura: '',
-                tipo_pago: 'efectivo',
-                observaciones: '',
-                productos: []
-            });
-            setProductosCompra([]);
+            // Generar PDF automáticamente
+            setTimeout(async () => {
+                try {
+                    const detalleResponse = await api.get(`/compras/${response.data.compra_id}`);
+                    const detalleData = detalleResponse.data;
+                    
+                    const pdfData = {
+                        id_compra: detalleData.compra.id_compra,
+                        fecha: detalleData.compra.fecha,
+                        numero_factura: detalleData.compra.numero_factura,
+                        total: detalleData.compra.total,
+                        tipo_pago: detalleData.compra.tipo_pago,
+                        estado: detalleData.compra.estado,
+                        observaciones: detalleData.compra.observaciones,
+                        empresa_nombre: user.empresa_nombre || 'Mi Microempresa',
+                        empresa_nit: '123456789',
+                        empresa_direccion: 'Av. Principal #123',
+                        empresa_telefono: '+591 70000000',
+                        proveedor_nombre: detalleData.compra.proveedor_nombre,
+                        proveedor_nit: detalleData.compra.proveedor_nit,
+                        proveedor_telefono: detalleData.compra.proveedor_telefono,
+                        proveedor_email: detalleData.compra.proveedor_email,
+                        proveedor_direccion: detalleData.compra.proveedor_direccion,
+                        usuario_nombre: detalleData.compra.usuario_nombre,
+                        productos: detalleData.detalles.map(detalle => ({
+                            nombre: detalle.producto_nombre,
+                            cantidad: detalle.cantidad,
+                            precio_unitario: detalle.precio_unitario,
+                            subtotal: detalle.subtotal,
+                            proveedor: detalle.proveedor_nombre
+                        }))
+                    };
+                    
+                    PdfService.generarComprobanteCompra(pdfData);
+                } catch (pdfError) {
+                    console.warn('No se pudo generar PDF automático:', pdfError);
+                }
+            }, 1000);
+
+            // Limpiar formulario y cerrar modal
             setModalOpen(false);
-            cargarDatos();
+            resetearFormularioCompra();
+            
+            // Recargar datos
+            setTimeout(() => cargarDatos(), 500);
             
         } catch (error) {
+            console.error('Error registrando compra:', error);
             notifications.show({
                 title: '❌ Error',
                 message: error.response?.data?.message || 'Error al registrar la compra',
                 color: 'red',
-                icon: <IconX size={20} />
+                autoClose: 5000
             });
         }
+    };
+
+    // Resetear formulario de compra
+    const resetearFormularioCompra = () => {
+        setNuevaCompra({
+            proveedor_id: '',
+            numero_factura: '',
+            tipo_pago: 'efectivo',
+            observaciones: '',
+            productos: []
+        });
+        setProductosCompra([]);
+        generarNumeroFacturaAutomatico();
     };
 
     // Handler para ver detalles
@@ -321,32 +470,58 @@ const GestionCompras = () => {
             setCompraSeleccionada(id);
             setModalDetallesOpen(true);
         } catch (error) {
-            const msg = error.response?.data?.message || error.response?.data?.error || error.message || 'Error al cargar detalles';
+            console.error('Error cargando detalles:', error);
             notifications.show({
                 title: 'Error',
-                message: msg,
+                message: 'No se pudieron cargar los detalles',
                 color: 'red'
             });
-            console.error('Error verDetallesCompra:', error.response?.data || error.message);
         }
     };
 
-    // Descargar PDF de compra
-    const descargarPDFCompra = async (idCompra) => {
+    // Generar PDF de compra
+    const generarPDFCompra = async (compraId) => {
         try {
-            const response = await axios.get(`/api/compras/${idCompra}/reporte`);
+            const response = await api.get(`/compras/${compraId}`);
+            const compraData = response.data;
             
-            // AGREGAR ESTE CONSOLE.LOG PARA VER LOS DATOS
-            console.log('Datos recibidos del backend:', response.data);
+            const pdfData = {
+                id_compra: compraData.compra.id_compra,
+                fecha: compraData.compra.fecha,
+                numero_factura: compraData.compra.numero_factura,
+                total: compraData.compra.total,
+                tipo_pago: compraData.compra.tipo_pago,
+                estado: compraData.compra.estado,
+                observaciones: compraData.compra.observaciones,
+                empresa_nombre: user.empresa_nombre || 'Mi Microempresa',
+                empresa_nit: '123456789',
+                empresa_direccion: 'Av. Principal #123',
+                empresa_telefono: '+591 70000000',
+                proveedor_nombre: compraData.compra.proveedor_nombre,
+                proveedor_nit: compraData.compra.proveedor_nit,
+                proveedor_telefono: compraData.compra.proveedor_telefono,
+                proveedor_email: compraData.compra.proveedor_email,
+                proveedor_direccion: compraData.compra.proveedor_direccion,
+                usuario_nombre: compraData.compra.usuario_nombre,
+                productos: compraData.detalles.map(detalle => ({
+                    nombre: detalle.producto_nombre,
+                    cantidad: detalle.cantidad,
+                    precio_unitario: detalle.precio_unitario,
+                    subtotal: detalle.subtotal,
+                    proveedor: detalle.proveedor_nombre
+                }))
+            };
             
-            await PdfService.generarReporteCompra(response.data);
+            PdfService.generarComprobanteCompra(pdfData);
+            
             notifications.show({
-                title: 'Éxito',
-                message: 'PDF generado correctamente',
+                title: '✅ PDF generado',
+                message: 'El comprobante se ha descargado',
                 color: 'green'
             });
+            
         } catch (error) {
-            console.error('Error descargando PDF:', error);
+            console.error('Error generando PDF:', error);
             notifications.show({
                 title: 'Error',
                 message: 'No se pudo generar el PDF',
@@ -354,13 +529,21 @@ const GestionCompras = () => {
             });
         }
     };
+
     // Filtrar compras
     const comprasFiltradas = compras.filter(compra => {
         const matchBusqueda = busqueda ? 
             compra.numero_factura?.toLowerCase().includes(busqueda.toLowerCase()) ||
-            compra.proveedor_nombre?.toLowerCase().includes(busqueda.toLowerCase()) : true;
+            compra.proveedor_nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
+            compra.id_compra?.toString().includes(busqueda) : true;
         
-        return matchBusqueda;
+        const matchProveedor = filtroProveedor === 'todos' || 
+            compra.proveedor_id?.toString() === filtroProveedor;
+        
+        const matchFechaInicio = !fechaInicio || new Date(compra.fecha) >= new Date(fechaInicio);
+        const matchFechaFin = !fechaFin || new Date(compra.fecha) <= new Date(fechaFin + 'T23:59:59');
+        
+        return matchBusqueda && matchProveedor && matchFechaInicio && matchFechaFin;
     });
 
     // Paginación
@@ -379,7 +562,7 @@ const GestionCompras = () => {
             return fechaCompra.getMonth() === hoy.getMonth() && 
                    fechaCompra.getFullYear() === hoy.getFullYear();
         }).length;
-
+        
         return (
             <SimpleGrid cols={3} mb="lg">
                 <Paper withBorder p="md" radius="md">
@@ -924,9 +1107,15 @@ const GestionCompras = () => {
                                     <Badge color="green" size="lg">
                                         Bs {parseFloat(detallesCompra.compra.total || 0).toFixed(2)}
                                     </Badge>
-                                    <Button size="xs" variant="light" onClick={() => descargarPDFCompra(detallesCompra.compra.id_compra)} leftIcon={<IconDownload size={14} />}>
-                                        Descargar
-                                    </Button>
+                                    <Group justify="center" mt="md">
+                                        <Button 
+                                            leftSection={<IconFileInvoice size={18} />}
+                                            onClick={() => handleGenerarPDF(compraSeleccionada.id_compra)}
+                                            color="green"
+                                        >
+                                            Generar Comprobante PDF
+                                        </Button>
+                                    </Group>
                                 </Group>
                             </Group>
                             

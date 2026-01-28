@@ -24,6 +24,7 @@ import PortalMicroempresa from './pages/PortalMicroempresa';
 import HistorialPedidos from './pages/HistorialPedidos';
 import GestionProveedores from './pages/GestionProveedores';
 import GestionCompras from './pages/GestionCompras';
+import Ventas from './pages/Ventas';
 
 import { getCurrentUser } from './services/auth';
 
@@ -106,7 +107,6 @@ function App() {
             <PortalMicroempresa />
           } />
 
-          {/* RUTA DE CLIENTES */}
           <Route path="/clientes" element={
             <PrivateRoute>
               <Clientes />
@@ -163,9 +163,9 @@ function App() {
           } />
 
           <Route path="/ventas" element={
-            <PrivateRoute>
-              <Dashboard />
-            </PrivateRoute>
+              <PrivateRoute requiredRoles={['vendedor', 'administrador']}>
+                  <Ventas />
+              </PrivateRoute>
           } />
 
           <Route path="*" element={<Navigate to="/" replace />} />
