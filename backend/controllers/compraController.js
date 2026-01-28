@@ -369,3 +369,65 @@ exports.getProductosParaCompra = async (req, res) => {
         });
     }
 };
+
+exports.generarReporteCompra = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { microempresa_id } = req.user;
+
+        console.log('Buscando compra:', id, 'para microempresa:', microempresa_id);
+
+        const [compras] = await db.execute(
+            `SELECT c.*, m.nombre_empresa, m.nit as empresa_nit, 
+                    m.direccion as empresa_direccion, m.telefono as empresa_telefono
+             FROM compra c
+             INNER JOIN microempresa m ON c.id_microempresa = m.id_microempresa
+             WHERE c.id_compra = ? AND c.id_microempresa = ?`,
+            [id, microempresa_id]
+        );
+
+        console.log('Compra encontrada:', compras);
+
+        if (!compras || compras.length === 0) {
+            return res.status(404).json({ error: 'Compra no encontrada' });
+        }
+
+        const compra = compras[0];
+
+        const [detalles] = await db.execute(
+            `SELECT dc.*, p.nombre as producto_nombre, pr.nombre as proveedor_nombre
+             FROM detalle_compra dc
+             INNER JOIN producto p ON dc.id_producto = p.id_producto
+             INNER JOIN proveedor pr ON dc.id_proveedor = pr.id_proveedor
+             WHERE dc.id_compra = ?`,
+            [id]
+        );
+
+        console.log('Detalles encontrados:', detalles);
+
+        const datosReporte = {
+            id_compra: compra.id_compra,
+            fecha: compra.fecha,
+            total: compra.total ? parseFloat(compra.total) : 0,
+            estado: compra.estado,
+            empresa_nombre: compra.nombre_empresa,
+            empresa_nit: compra.empresa_nit,
+            empresa_direccion: compra.empresa_direccion,
+            empresa_telefono: compra.empresa_telefono,
+            productos: detalles.map(d => ({
+                nombre: d.producto_nombre || 'Producto sin nombre',
+                proveedor: d.proveedor_nombre || 'Proveedor no especificado',
+                cantidad: d.cantidad || 0,
+                precio_unitario: d.precio_unitario ? parseFloat(d.precio_unitario) : 0,
+                subtotal: d.subtotal ? parseFloat(d.subtotal) : 0
+            }))
+        };
+
+        console.log('Datos a enviar:', datosReporte);
+
+        res.json(datosReporte);
+    } catch (error) {
+        console.error('Error generando reporte de compra:', error);
+        res.status(500).json({ error: 'Error al generar reporte de compra', details: error.message });
+    }
+};
