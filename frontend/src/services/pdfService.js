@@ -180,6 +180,140 @@ class PdfService {
         });
     }
 
+    // Agregar este método a la clase PdfService
+    static async generarReporteCompra(compraData) {
+        return new Promise((resolve, reject) => {
+            try {
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pageWidth = pdf.internal.pageSize.getWidth();
+                const pageHeight = pdf.internal.pageSize.getHeight();
+                const margin = 15;
+                let yPos = margin;
+
+                // Validar datos básicos
+                if (!compraData) {
+                    throw new Error('No se recibieron datos de la compra');
+                }
+
+                // Título
+                pdf.setFontSize(18);
+                pdf.setFont("helvetica", "bold");
+                pdf.text("REPORTE DE COMPRA", pageWidth / 2, yPos, { align: 'center' });
+                yPos += 8;
+
+                pdf.setFontSize(12);
+                pdf.text(`N° ${compraData.id_compra || 'N/A'}`, pageWidth / 2, yPos, { align: 'center' });
+                yPos += 15;
+
+                // Información de la empresa
+                pdf.setFontSize(12);
+                pdf.setFont("helvetica", "bold");
+                pdf.text("EMPRESA:", margin, yPos);
+                pdf.setFont("helvetica", "normal");
+                yPos += 7;
+
+                pdf.text(compraData.empresa_nombre || "Microempresa", margin + 10, yPos);
+                if (compraData.empresa_nit) {
+                    yPos += 6;
+                    pdf.text(`NIT: ${compraData.empresa_nit}`, margin + 10, yPos);
+                }
+                if (compraData.empresa_direccion) {
+                    yPos += 6;
+                    pdf.text(`Dirección: ${compraData.empresa_direccion}`, margin + 10, yPos);
+                }
+                if (compraData.empresa_telefono) {
+                    yPos += 6;
+                    pdf.text(`Teléfono: ${compraData.empresa_telefono}`, margin + 10, yPos);
+                }
+                yPos += 10;
+
+                // Fecha y estado
+                const fecha = compraData.fecha ? new Date(compraData.fecha).toLocaleDateString() : 'N/A';
+                pdf.text(`Fecha: ${fecha}`, margin, yPos);
+                yPos += 6;
+                pdf.text(`Estado: ${compraData.estado || 'N/A'}`, margin, yPos);
+                yPos += 15;
+
+                // Tabla de productos
+                pdf.setFont("helvetica", "bold");
+                pdf.setFillColor(240, 240, 240);
+                pdf.rect(margin, yPos, pageWidth - 2 * margin, 8, 'F');
+                
+                pdf.text("Cant.", margin + 5, yPos + 6);
+                pdf.text("Producto", margin + 25, yPos + 6);
+                pdf.text("Proveedor", margin + 90, yPos + 6);
+                pdf.text("P. Unit.", margin + 135, yPos + 6);
+                pdf.text("Subtotal", pageWidth - margin - 5, yPos + 6, { align: 'right' });
+                
+                yPos += 12;
+
+                // Productos
+                pdf.setFont("helvetica", "normal");
+                let totalCalculado = 0;
+                
+                if (compraData.productos && Array.isArray(compraData.productos) && compraData.productos.length > 0) {
+                    compraData.productos.forEach(producto => {
+                        if (yPos > pageHeight - 40) {
+                            pdf.addPage();
+                            yPos = margin;
+                        }
+
+                        // Validar y obtener valores seguros
+                        const cantidad = producto.cantidad || 0;
+                        const precioUnitario = parseFloat(producto.precio_unitario) || 0;
+                        const subtotal = parseFloat(producto.subtotal) || (cantidad * precioUnitario);
+                        
+                        totalCalculado += subtotal;
+
+                        pdf.text(`${cantidad}`, margin + 5, yPos);
+                        
+                        // Truncar texto largo
+                        const nombreProducto = (producto.nombre || 'Producto').substring(0, 30);
+                        const nombreProveedor = (producto.proveedor || 'N/A').substring(0, 20);
+                        
+                        pdf.text(nombreProducto, margin + 25, yPos);
+                        pdf.text(nombreProveedor, margin + 90, yPos);
+                        pdf.text(`Bs ${precioUnitario.toFixed(2)}`, margin + 135, yPos);
+                        pdf.text(`Bs ${subtotal.toFixed(2)}`, pageWidth - margin - 5, yPos, { align: 'right' });
+                        
+                        yPos += 7;
+                    });
+                } else {
+                    pdf.text("No hay productos en esta compra", margin + 25, yPos);
+                    yPos += 7;
+                }
+
+                yPos += 10;
+
+                // Total
+                pdf.setDrawColor(0, 0, 0);
+                pdf.line(pageWidth - 100, yPos, pageWidth - margin, yPos);
+                yPos += 8;
+
+                // Usar el total de la base de datos o el calculado
+                const totalFinal = parseFloat(compraData.total) || totalCalculado;
+
+                pdf.setFont("helvetica", "bold");
+                pdf.text("TOTAL:", pageWidth - 80, yPos);
+                pdf.text(`Bs ${totalFinal.toFixed(2)}`, pageWidth - margin - 5, yPos, { align: 'right' });
+                yPos += 15;
+
+                // Pie de página
+                pdf.setFontSize(9);
+                pdf.setTextColor(128, 128, 128);
+                pdf.text("Documento generado electrónicamente", pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+                // Guardar PDF
+                const fileName = `compra_${compraData.id_compra || Date.now()}.pdf`;
+                pdf.save(fileName);
+
+                resolve(fileName);
+            } catch (error) {
+                console.error('Error generando PDF de compra:', error);
+                reject(error);
+            }
+        });
+    }
     /**
      * Genera PDF desde un elemento HTML (para plantillas más complejas)
      */

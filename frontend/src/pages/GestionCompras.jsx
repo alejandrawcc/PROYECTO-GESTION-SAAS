@@ -16,7 +16,8 @@ import { notifications } from '@mantine/notifications';
 import { getCurrentUser } from '../services/auth';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios'; // Asegúrate de tener axios configurado
+import axios from 'axios'; 
+import PdfService from '../services/pdfService';
 
 const GestionCompras = () => {
     const user = getCurrentUser();
@@ -331,25 +332,28 @@ const GestionCompras = () => {
     };
 
     // Descargar PDF de compra
-    const descargarPDFCompra = async (id) => {
+    const descargarPDFCompra = async (idCompra) => {
         try {
-            const res = await api.get(`/compras/${id}/reporte`, { responseType: 'blob' });
-            const blob = new Blob([res.data], { type: 'application/pdf' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `compra_${id}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
-            notifications.show({ title: 'Descarga iniciada', message: `Descargando compra ${id}`, color: 'blue' });
+            const response = await axios.get(`/api/compras/${idCompra}/reporte`);
+            
+            // AGREGAR ESTE CONSOLE.LOG PARA VER LOS DATOS
+            console.log('Datos recibidos del backend:', response.data);
+            
+            await PdfService.generarReporteCompra(response.data);
+            notifications.show({
+                title: 'Éxito',
+                message: 'PDF generado correctamente',
+                color: 'green'
+            });
         } catch (error) {
-            console.error('Error descargando PDF', error);
-            notifications.show({ title: 'Error', message: 'No se pudo descargar el PDF', color: 'red' });
+            console.error('Error descargando PDF:', error);
+            notifications.show({
+                title: 'Error',
+                message: 'No se pudo generar el PDF',
+                color: 'red'
+            });
         }
     };
-
     // Filtrar compras
     const comprasFiltradas = compras.filter(compra => {
         const matchBusqueda = busqueda ? 
