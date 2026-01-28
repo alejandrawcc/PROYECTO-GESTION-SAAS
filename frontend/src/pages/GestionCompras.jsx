@@ -332,61 +332,62 @@ const GestionCompras = () => {
     };
 
     // Descargar PDF de compra
-    const handleGenerarPDF = async (compraId) => {
+    const handleGenerarPDF = async () => {
+        if (!compraSeleccionada) return;
+        
         try {
-            // Obtener datos detallados de la compra
-            const response = await api.get(`/compras/${compraId}`);
-            const compraData = response.data;
+            setCargandoPDF(true);
             
-            console.log("Datos para PDF:", compraData);
+            const response = await api.get(`/compras/${compraSeleccionada.id_compra}/reporte`);
+            const datosCompra = response.data;
             
-            // Preparar datos para el PDF
-            const pdfData = {
-                id_compra: compraData.compra.id_compra,
-                fecha: compraData.compra.fecha,
-                numero_factura: compraData.compra.numero_factura,
-                total: compraData.compra.total,
-                tipo_pago: compraData.compra.tipo_pago,
-                estado: compraData.compra.estado,
-                observaciones: compraData.compra.observaciones,
-                empresa_nombre: compraData.compra.empresa_nombre || user.empresa_nombre || 'Mi Microempresa',
-                empresa_nit: compraData.compra.empresa_nit || '123456789',
-                empresa_direccion: compraData.compra.empresa_direccion || 'Av. Principal #123',
-                empresa_telefono: compraData.compra.empresa_telefono || '+591 70000000',
-                proveedor_nombre: compraData.compra.proveedor_nombre,
-                proveedor_nit: compraData.compra.proveedor_nit,
-                proveedor_telefono: compraData.compra.proveedor_telefono,
-                proveedor_email: compraData.compra.proveedor_email,
-                proveedor_direccion: compraData.compra.proveedor_direccion,
-                usuario_nombre: compraData.compra.usuario_nombre,
-                productos: compraData.detalles.map(detalle => ({
-                    nombre: detalle.producto_nombre,
-                    cantidad: detalle.cantidad,
-                    precio_unitario: detalle.precio_unitario,
-                    subtotal: detalle.subtotal,
-                    proveedor: detalle.proveedor_nombre
+            console.log('Datos de compra para PDF:', datosCompra);
+            
+            // **VALIDAR Y FORMATEAR LOS DATOS ANTES DE ENVIAR AL PDF**
+            const datosFormateados = {
+                ...datosCompra,
+                productos: datosCompra.productos.map(producto => ({
+                    ...producto,
+                    // Asegurar que cantidad sea número
+                    cantidad: typeof producto.cantidad === 'string' ? 
+                        parseInt(producto.cantidad) : producto.cantidad,
+                    // Asegurar que precio_unitario sea número con 2 decimales
+                    precio_unitario: typeof producto.precio_unitario === 'string' ?
+                        parseFloat(parseFloat(producto.precio_unitario).toFixed(2)) :
+                        typeof producto.precio_unitario === 'number' ?
+                        parseFloat(producto.precio_unitario.toFixed(2)) : 0,
+                    // Asegurar que subtotal sea número con 2 decimales
+                    subtotal: typeof producto.subtotal === 'string' ?
+                        parseFloat(parseFloat(producto.subtotal).toFixed(2)) :
+                        typeof producto.subtotal === 'number' ?
+                        parseFloat(producto.subtotal.toFixed(2)) : 0
                 }))
             };
             
-            // Generar PDF
-            PdfService.generarComprobanteCompra(pdfData);
+            console.log('Datos formateados para PDF:', datosFormateados);
+            
+            // Generar PDF con datos formateados
+            await PdfService.generarComprobanteCompra(datosFormateados);
             
             notifications.show({
-                title: 'PDF generado',
-                message: 'El comprobante de compra se ha descargado',
+                title: 'PDF Generado',
+                message: 'El comprobante se está descargando',
                 color: 'green'
             });
-            
         } catch (error) {
-            console.error("Error generando PDF de compra:", error);
+            console.error('❌ Error generando PDF:', error);
+            console.error('Datos que causaron el error:', error.response?.data);
+            
             notifications.show({
                 title: 'Error',
-                message: 'No se pudo generar el PDF',
+                message: `No se pudo generar el PDF: ${error.message}`,
                 color: 'red'
             });
+        } finally {
+            setCargandoPDF(false);
         }
     };
-
+    
     // Filtrar compras
     const comprasFiltradas = compras.filter(compra => {
         const matchBusqueda = busqueda ? 

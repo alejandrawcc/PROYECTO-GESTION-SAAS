@@ -377,7 +377,7 @@ exports.generarReporteCompra = async (req, res) => {
 
         console.log('Buscando compra:', id, 'para microempresa:', microempresa_id);
 
-        // Corregir esta consulta - la tabla se llama 'microempresa' no 'microempresas'
+        // Obtener compra
         const [compras] = await db.execute(
             `SELECT c.*, m.nombre as nombre_empresa, m.nit as empresa_nit, 
                     m.direccion as empresa_direccion, m.telefono as empresa_telefono
@@ -387,15 +387,13 @@ exports.generarReporteCompra = async (req, res) => {
             [id, microempresa_id]
         );
 
-        console.log('Compra encontrada:', compras);
-
         if (!compras || compras.length === 0) {
             return res.status(404).json({ error: 'Compra no encontrada' });
         }
 
         const compra = compras[0];
 
-        // Corregir también esta consulta - agregar alias coherentes
+        // Obtener detalles
         const [detalles] = await db.execute(
             `SELECT dc.*, p.nombre as producto_nombre, pr.nombre as proveedor_nombre
              FROM detalle_compra dc
@@ -407,6 +405,7 @@ exports.generarReporteCompra = async (req, res) => {
 
         console.log('Detalles encontrados:', detalles);
 
+        // **ARREGLO CRÍTICO: Asegurar que todos los valores numéricos sean números**
         const datosReporte = {
             id_compra: compra.id_compra,
             fecha: compra.fecha,
@@ -419,13 +418,17 @@ exports.generarReporteCompra = async (req, res) => {
             productos: detalles.map(d => ({
                 nombre: d.producto_nombre || 'Producto sin nombre',
                 proveedor: d.proveedor_nombre || 'Proveedor no especificado',
-                cantidad: d.cantidad || 0,
-                precio_unitario: d.precio_unitario ? parseFloat(d.precio_unitario) : 0,
-                subtotal: d.subtotal ? parseFloat(d.subtotal) : 0
+                cantidad: d.cantidad ? parseInt(d.cantidad) : 0,
+                // **ASEGURAR QUE SEA NÚMERO CON DOS DECIMALES**
+                precio_unitario: d.precio_unitario ? 
+                    parseFloat(parseFloat(d.precio_unitario).toFixed(2)) : 0,
+                // **ASEGURAR QUE SUBTOTAL SEA NÚMERO**
+                subtotal: d.subtotal ? 
+                    parseFloat(parseFloat(d.subtotal).toFixed(2)) : 0
             }))
         };
 
-        console.log('Datos a enviar:', datosReporte);
+        console.log('Datos a enviar (con números formateados):', datosReporte);
 
         res.json(datosReporte);
     } catch (error) {

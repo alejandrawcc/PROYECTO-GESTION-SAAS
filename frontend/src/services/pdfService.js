@@ -164,6 +164,49 @@ class PdfService {
     // ========== COMPROBANTE DE COMPRA ==========
     static generarComprobanteCompra(compraData) {
         try {
+            console.log('Generando comprobante de compra con datos:', datosCompra);
+        
+            // **VALIDACIÓN EXHAUSTIVA DE DATOS**
+            const datosValidados = {
+                ...datosCompra,
+                productos: datosCompra.productos.map(producto => {
+                    // Validar y convertir precio_unitario
+                    let precioUnitario = 0;
+                    if (producto.precio_unitario !== undefined && producto.precio_unitario !== null) {
+                        if (typeof producto.precio_unitario === 'string') {
+                            precioUnitario = parseFloat(producto.precio_unitario);
+                        } else if (typeof producto.precio_unitario === 'number') {
+                            precioUnitario = producto.precio_unitario;
+                        }
+                        // Verificar que sea un número válido
+                        if (isNaN(precioUnitario)) precioUnitario = 0;
+                    }
+                    
+                    // Validar y convertir cantidad
+                    let cantidad = 0;
+                    if (producto.cantidad !== undefined && producto.cantidad !== null) {
+                        if (typeof producto.cantidad === 'string') {
+                            cantidad = parseInt(producto.cantidad);
+                        } else if (typeof producto.cantidad === 'number') {
+                            cantidad = producto.cantidad;
+                        }
+                        if (isNaN(cantidad)) cantidad = 0;
+                    }
+                    
+                    // Calcular subtotal si no existe
+                    const subtotal = producto.subtotal !== undefined && !isNaN(parseFloat(producto.subtotal)) ?
+                        parseFloat(producto.subtotal) : (precioUnitario * cantidad);
+                    
+                    return {
+                        ...producto,
+                        cantidad: cantidad,
+                        precio_unitario: parseFloat(precioUnitario.toFixed(2)),
+                        subtotal: parseFloat(subtotal.toFixed(2))
+                    };
+                })
+            };
+            
+            console.log('Datos validados para PDF:', datosValidados);
             console.log("📄 Generando PDF de compra...", compraData);
             
             const doc = new jsPDF();
