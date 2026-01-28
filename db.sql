@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS `categoria_producto` (
   PRIMARY KEY (`id_categoria`),
   KEY `microempresa_id` (`microempresa_id`),
   CONSTRAINT `categoria_producto_ibfk_1` FOREIGN KEY (`microempresa_id`) REFERENCES `microempresa` (`id_microempresa`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- La exportación de datos fue deseleccionada.
 
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS `cliente` (
   PRIMARY KEY (`id_cliente`),
   KEY `microempresa_id` (`microempresa_id`),
   CONSTRAINT `cliente_ibfk_1` FOREIGN KEY (`microempresa_id`) REFERENCES `microempresa` (`id_microempresa`)
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- La exportación de datos fue deseleccionada.
 
@@ -65,10 +65,19 @@ CREATE TABLE IF NOT EXISTS `compra` (
   `fecha` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `total` decimal(10,2) NOT NULL,
   `estado` varchar(50) DEFAULT NULL,
+  `proveedor_id` int DEFAULT NULL,
+  `numero_factura` varchar(50) DEFAULT NULL,
+  `tipo_pago` varchar(50) DEFAULT 'efectivo',
+  `observaciones` text,
+  `usuario_id` int DEFAULT NULL,
   PRIMARY KEY (`id_compra`),
   KEY `id_microempresa` (`id_microempresa`),
-  CONSTRAINT `compra_ibfk_1` FOREIGN KEY (`id_microempresa`) REFERENCES `microempresa` (`id_microempresa`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  KEY `compra_ibfk_2` (`proveedor_id`),
+  KEY `compra_ibfk_3` (`usuario_id`),
+  CONSTRAINT `compra_ibfk_1` FOREIGN KEY (`id_microempresa`) REFERENCES `microempresa` (`id_microempresa`),
+  CONSTRAINT `compra_ibfk_2` FOREIGN KEY (`proveedor_id`) REFERENCES `proveedor` (`id_proveedor`),
+  CONSTRAINT `compra_ibfk_3` FOREIGN KEY (`usuario_id`) REFERENCES `usuario` (`id_usuario`)
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- La exportación de datos fue deseleccionada.
 
@@ -88,7 +97,7 @@ CREATE TABLE IF NOT EXISTS `detalle_compra` (
   CONSTRAINT `detalle_compra_ibfk_1` FOREIGN KEY (`id_compra`) REFERENCES `compra` (`id_compra`),
   CONSTRAINT `detalle_compra_ibfk_2` FOREIGN KEY (`id_producto`) REFERENCES `producto` (`id_producto`),
   CONSTRAINT `detalle_compra_ibfk_3` FOREIGN KEY (`id_proveedor`) REFERENCES `proveedor` (`id_proveedor`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- La exportación de datos fue deseleccionada.
 
@@ -105,7 +114,7 @@ CREATE TABLE IF NOT EXISTS `detalle_pedido` (
   KEY `producto_id` (`producto_id`),
   CONSTRAINT `detalle_pedido_ibfk_1` FOREIGN KEY (`pedido_id`) REFERENCES `pedido` (`id_pedido`),
   CONSTRAINT `detalle_pedido_ibfk_2` FOREIGN KEY (`producto_id`) REFERENCES `producto` (`id_producto`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- La exportación de datos fue deseleccionada.
 
@@ -125,7 +134,7 @@ CREATE TABLE IF NOT EXISTS `inventario_movimiento` (
   CONSTRAINT `inventario_movimiento_ibfk_1` FOREIGN KEY (`producto_id`) REFERENCES `producto` (`id_producto`),
   CONSTRAINT `inventario_movimiento_ibfk_2` FOREIGN KEY (`usuario_id`) REFERENCES `usuario` (`id_usuario`),
   CONSTRAINT `inventario_movimiento_ibfk_3` FOREIGN KEY (`microempresa_id`) REFERENCES `microempresa` (`id_microempresa`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- La exportación de datos fue deseleccionada.
 
@@ -172,7 +181,7 @@ CREATE TABLE IF NOT EXISTS `notificacion_stock` (
   KEY `microempresa_id` (`microempresa_id`),
   CONSTRAINT `notificacion_stock_ibfk_1` FOREIGN KEY (`producto_id`) REFERENCES `producto` (`id_producto`),
   CONSTRAINT `notificacion_stock_ibfk_2` FOREIGN KEY (`microempresa_id`) REFERENCES `microempresa` (`id_microempresa`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- La exportación de datos fue deseleccionada.
 
@@ -190,7 +199,7 @@ CREATE TABLE IF NOT EXISTS `pedido` (
   KEY `cliente_id` (`cliente_id`),
   CONSTRAINT `pedido_ibfk_1` FOREIGN KEY (`usuario_id`) REFERENCES `usuario` (`id_usuario`),
   CONSTRAINT `pedido_ibfk_2` FOREIGN KEY (`cliente_id`) REFERENCES `cliente` (`id_cliente`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- La exportación de datos fue deseleccionada.
 
@@ -229,10 +238,13 @@ CREATE TABLE IF NOT EXISTS `producto` (
   `visible_portal` tinyint(1) DEFAULT '1',
   `fecha_actualizacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `imagen_url` varchar(500) DEFAULT NULL COMMENT 'URL de la imagen del producto',
+  `proveedor_id` int DEFAULT NULL,
   PRIMARY KEY (`id_producto`),
   KEY `microempresa_id` (`microempresa_id`),
-  CONSTRAINT `producto_ibfk_1` FOREIGN KEY (`microempresa_id`) REFERENCES `microempresa` (`id_microempresa`)
-) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  KEY `producto_ibfk_2` (`proveedor_id`),
+  CONSTRAINT `producto_ibfk_1` FOREIGN KEY (`microempresa_id`) REFERENCES `microempresa` (`id_microempresa`),
+  CONSTRAINT `producto_ibfk_2` FOREIGN KEY (`proveedor_id`) REFERENCES `proveedor` (`id_proveedor`)
+) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- La exportación de datos fue deseleccionada.
 
@@ -242,8 +254,18 @@ CREATE TABLE IF NOT EXISTS `proveedor` (
   `nombre` varchar(100) NOT NULL,
   `direccion` text,
   `telefono` varchar(20) DEFAULT NULL,
-  PRIMARY KEY (`id_proveedor`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+  `nombre_contacto` varchar(100) DEFAULT NULL,
+  `email` varchar(100) DEFAULT NULL,
+  `ci_nit` varchar(20) DEFAULT NULL,
+  `descripcion` text,
+  `estado` enum('activo','inactivo') DEFAULT 'activo',
+  `microempresa_id` int DEFAULT NULL,
+  `fecha_registro` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `fecha_actualizacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_proveedor`),
+  KEY `proveedor_ibfk_1` (`microempresa_id`),
+  CONSTRAINT `proveedor_ibfk_1` FOREIGN KEY (`microempresa_id`) REFERENCES `microempresa` (`id_microempresa`)
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- La exportación de datos fue deseleccionada.
 
@@ -291,7 +313,7 @@ CREATE TABLE IF NOT EXISTS `visita_cliente` (
   KEY `microempresa_id` (`microempresa_id`),
   CONSTRAINT `visita_cliente_ibfk_1` FOREIGN KEY (`cliente_id`) REFERENCES `cliente` (`id_cliente`),
   CONSTRAINT `visita_cliente_ibfk_2` FOREIGN KEY (`microempresa_id`) REFERENCES `microempresa` (`id_microempresa`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- La exportación de datos fue deseleccionada.
 

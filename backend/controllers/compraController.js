@@ -377,8 +377,9 @@ exports.generarReporteCompra = async (req, res) => {
 
         console.log('Buscando compra:', id, 'para microempresa:', microempresa_id);
 
+        // Corregir esta consulta - la tabla se llama 'microempresa' no 'microempresas'
         const [compras] = await db.execute(
-            `SELECT c.*, m.nombre_empresa, m.nit as empresa_nit, 
+            `SELECT c.*, m.nombre as nombre_empresa, m.nit as empresa_nit, 
                     m.direccion as empresa_direccion, m.telefono as empresa_telefono
              FROM compra c
              INNER JOIN microempresa m ON c.id_microempresa = m.id_microempresa
@@ -394,6 +395,7 @@ exports.generarReporteCompra = async (req, res) => {
 
         const compra = compras[0];
 
+        // Corregir también esta consulta - agregar alias coherentes
         const [detalles] = await db.execute(
             `SELECT dc.*, p.nombre as producto_nombre, pr.nombre as proveedor_nombre
              FROM detalle_compra dc

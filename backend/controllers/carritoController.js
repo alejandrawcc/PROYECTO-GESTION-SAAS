@@ -360,7 +360,7 @@ exports.procesarVenta = async (req, res) => {
         for (const item of carrito.productos) {
             await connection.execute(
                 `INSERT INTO inventario_movimiento 
-                (tipo, cantidad, fecha, id_producto, id_usuario, microempresa_id) 
+                (tipo, cantidad, fecha, producto_id, usuario_id, microempresa_id)  -- Cambiado id_producto por producto_id
                 VALUES ('salida', ?, NOW(), ?, ?, ?)`,
                 [item.cantidad, item.id_producto, id_usuario, carrito.microempresa_id]
             );
