@@ -377,15 +377,32 @@ exports.generarReporteCompra = async (req, res) => {
 
         console.log('Buscando compra:', id, 'para microempresa:', microempresa_id);
 
-        // Obtener compra
+        // Obtener información completa de la compra
         const [compras] = await db.execute(
-            `SELECT c.*, m.nombre as nombre_empresa, m.nit as empresa_nit, 
-                    m.direccion as empresa_direccion, m.telefono as empresa_telefono
+            `SELECT c.*, 
+                    m.nombre as empresa_nombre, 
+                    m.nit as empresa_nit, 
+                    m.direccion as empresa_direccion, 
+                    m.telefono as empresa_telefono,
+                    m.email as empresa_email,
+                    p.id_proveedor,
+                    p.nombre as proveedor_nombre,
+                    p.ci_nit as proveedor_nit,
+                    p.direccion as proveedor_direccion,
+                    p.telefono as proveedor_telefono,
+                    p.email as proveedor_email,
+                    p.nombre_contacto as proveedor_contacto,
+                    u.nombre as usuario_nombre,
+                    u.apellido as usuario_apellido
              FROM compra c
              INNER JOIN microempresa m ON c.id_microempresa = m.id_microempresa
+             INNER JOIN proveedor p ON c.proveedor_id = p.id_proveedor
+             LEFT JOIN usuario u ON c.usuario_id = u.id_usuario
              WHERE c.id_compra = ? AND c.id_microempresa = ?`,
             [id, microempresa_id]
         );
+
+        console.log('Compra encontrada:', compras);
 
         if (!compras || compras.length === 0) {
             return res.status(404).json({ error: 'Compra no encontrada' });
@@ -393,46 +410,81 @@ exports.generarReporteCompra = async (req, res) => {
 
         const compra = compras[0];
 
-        // Obtener detalles
+        // Obtener detalles de productos comprados
         const [detalles] = await db.execute(
-            `SELECT dc.*, p.nombre as producto_nombre, pr.nombre as proveedor_nombre
+            `SELECT dc.*, 
+                    pr.nombre as producto_nombre,
+                    pr.descripcion as producto_descripcion,
+                    pr.stock_actual,
+                    pr.precio as precio_actual
              FROM detalle_compra dc
-             INNER JOIN producto p ON dc.id_producto = p.id_producto
-             INNER JOIN proveedor pr ON dc.id_proveedor = pr.id_proveedor
+             INNER JOIN producto pr ON dc.id_producto = pr.id_producto
              WHERE dc.id_compra = ?`,
             [id]
         );
 
-        console.log('Detalles encontrados:', detalles);
+        console.log('Detalles encontrados:', detalles.length);
 
-        // **ARREGLO CRÍTICO: Asegurar que todos los valores numéricos sean números**
+        // Preparar datos completos para el reporte
         const datosReporte = {
+            // Información de la compra
             id_compra: compra.id_compra,
             fecha: compra.fecha,
             total: compra.total ? parseFloat(compra.total) : 0,
-            estado: compra.estado,
-            empresa_nombre: compra.nombre_empresa,
+            numero_factura: compra.numero_factura || 'Sin número',
+            tipo_pago: compra.tipo_pago || 'No especificado',
+            observaciones: compra.observaciones || '',
+            estado: compra.estado || 'Completada',
+            
+            // Información de la empresa (compradora)
+            empresa_nombre: compra.empresa_nombre,
             empresa_nit: compra.empresa_nit,
             empresa_direccion: compra.empresa_direccion,
             empresa_telefono: compra.empresa_telefono,
+            empresa_email: compra.empresa_email,
+            
+            // Información COMPLETA del proveedor
+            proveedor_id: compra.proveedor_id,
+            proveedor_nombre: compra.proveedor_nombre,
+            proveedor_nit: compra.proveedor_nit,
+            proveedor_direccion: compra.proveedor_direccion,
+            proveedor_telefono: compra.proveedor_telefono,
+            proveedor_email: compra.proveedor_email,
+            proveedor_contacto: compra.proveedor_contacto,
+            
+            // Información del usuario que registró
+            usuario_nombre: compra.usuario_nombre ? 
+                `${compra.usuario_nombre} ${compra.usuario_apellido || ''}`.trim() : 
+                'No registrado',
+            
+            // Productos
             productos: detalles.map(d => ({
+                id: d.id_producto,
                 nombre: d.producto_nombre || 'Producto sin nombre',
-                proveedor: d.proveedor_nombre || 'Proveedor no especificado',
-                cantidad: d.cantidad ? parseInt(d.cantidad) : 0,
-                // **ASEGURAR QUE SEA NÚMERO CON DOS DECIMALES**
-                precio_unitario: d.precio_unitario ? 
-                    parseFloat(parseFloat(d.precio_unitario).toFixed(2)) : 0,
-                // **ASEGURAR QUE SUBTOTAL SEA NÚMERO**
-                subtotal: d.subtotal ? 
-                    parseFloat(parseFloat(d.subtotal).toFixed(2)) : 0
-            }))
+                descripcion: d.producto_descripcion,
+                cantidad: d.cantidad || 0,
+                precio_unitario: d.precio_unitario ? parseFloat(d.precio_unitario) : 0,
+                subtotal: d.subtotal ? parseFloat(d.subtotal) : 0,
+                stock_actual: d.stock_actual
+            })),
+            
+            // Totales
+            resumen: {
+                total_productos: detalles.length,
+                total_unidades: detalles.reduce((sum, d) => sum + (d.cantidad || 0), 0),
+                total_comprado: compra.total ? parseFloat(compra.total) : 0
+            }
         };
 
-        console.log('Datos a enviar (con números formateados):', datosReporte);
+        console.log('Datos completos para PDF:', datosReporte);
 
         res.json(datosReporte);
+        
     } catch (error) {
         console.error('Error generando reporte de compra:', error);
-        res.status(500).json({ error: 'Error al generar reporte de compra', details: error.message });
+        res.status(500).json({ 
+            error: 'Error al generar reporte de compra', 
+            details: error.message 
+        });
     }
 };

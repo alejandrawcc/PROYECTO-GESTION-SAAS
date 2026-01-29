@@ -176,50 +176,12 @@ class PdfService {
     // ========== COMPROBANTE DE COMPRA ==========
     static generarComprobanteCompra(compraData) {
         try {
-            console.log('Generando comprobante de compra con datos:', datosCompra);
-        
-            // **VALIDACIÓN EXHAUSTIVA DE DATOS**
-            const datosValidados = {
-                ...datosCompra,
-                productos: datosCompra.productos.map(producto => {
-                    // Validar y convertir precio_unitario
-                    let precioUnitario = 0;
-                    if (producto.precio_unitario !== undefined && producto.precio_unitario !== null) {
-                        if (typeof producto.precio_unitario === 'string') {
-                            precioUnitario = parseFloat(producto.precio_unitario);
-                        } else if (typeof producto.precio_unitario === 'number') {
-                            precioUnitario = producto.precio_unitario;
-                        }
-                        // Verificar que sea un número válido
-                        if (isNaN(precioUnitario)) precioUnitario = 0;
-                    }
-                    
-                    // Validar y convertir cantidad
-                    let cantidad = 0;
-                    if (producto.cantidad !== undefined && producto.cantidad !== null) {
-                        if (typeof producto.cantidad === 'string') {
-                            cantidad = parseInt(producto.cantidad);
-                        } else if (typeof producto.cantidad === 'number') {
-                            cantidad = producto.cantidad;
-                        }
-                        if (isNaN(cantidad)) cantidad = 0;
-                    }
-                    
-                    // Calcular subtotal si no existe
-                    const subtotal = producto.subtotal !== undefined && !isNaN(parseFloat(producto.subtotal)) ?
-                        parseFloat(producto.subtotal) : (precioUnitario * cantidad);
-                    
-                    return {
-                        ...producto,
-                        cantidad: cantidad,
-                        precio_unitario: parseFloat(precioUnitario.toFixed(2)),
-                        subtotal: parseFloat(subtotal.toFixed(2))
-                    };
-                })
-            };
+            console.log('Generando comprobante de compra con datos:', compraData);
             
-            console.log('Datos validados para PDF:', datosValidados);
-            console.log("📄 Generando PDF de compra...", compraData);
+            // Validación de datos
+            if (!compraData) {
+                throw new Error('No hay datos de compra');
+            }
             
             const doc = new jsPDF();
             
@@ -234,8 +196,9 @@ class PdfService {
             doc.text(`Factura: ${compraData.numero_factura || 'Sin número'}`, 110, 35);
             doc.text(`Fecha: ${new Date(compraData.fecha).toLocaleDateString()}`, 160, 35);
             doc.text(`Hora: ${new Date(compraData.fecha).toLocaleTimeString()}`, 160, 40);
+            doc.text(`Estado: ${compraData.estado || 'Completada'}`, 20, 40);
             
-            // ========== INFORMACIÓN EMPRESA ==========
+            // ========== INFORMACIÓN EMPRESA COMPRADORA ==========
             doc.setFontSize(12);
             doc.setTextColor(0, 102, 51);
             doc.text('EMPRESA COMPRADORA:', 20, 55);
@@ -246,39 +209,95 @@ class PdfService {
             doc.text(`NIT: ${compraData.empresa_nit || '123456789'}`, 20, 65);
             doc.text(`Dirección: ${compraData.empresa_direccion || 'Av. Principal #123'}`, 20, 70);
             doc.text(`Teléfono: ${compraData.empresa_telefono || '+591 70000000'}`, 20, 75);
+            doc.text(`Email: ${compraData.empresa_email || 'info@empresa.com'}`, 20, 80);
             
-            // ========== INFORMACIÓN PROVEEDOR ==========
+            // ========== INFORMACIÓN COMPLETA DEL PROVEEDOR ==========
             doc.setFontSize(12);
             doc.setTextColor(0, 102, 51);
             doc.text('PROVEEDOR:', 120, 55);
             
             doc.setFontSize(10);
             doc.setTextColor(0, 0, 0);
-            doc.text(compraData.proveedor_nombre || 'Proveedor General', 120, 60);
             
-            let proveedorY = 65;
+            let proveedorY = 60;
+            
+            // Nombre del proveedor
+            doc.text(compraData.proveedor_nombre || 'Proveedor General', 120, proveedorY);
+            proveedorY += 5;
+            
+            // NIT/CI del proveedor
             if (compraData.proveedor_nit) {
-                doc.text(`NIT: ${compraData.proveedor_nit}`, 120, proveedorY);
+                doc.text(`NIT/CI: ${compraData.proveedor_nit}`, 120, proveedorY);
                 proveedorY += 5;
             }
+            
+            // Contacto del proveedor
+            if (compraData.proveedor_contacto) {
+                doc.text(`Contacto: ${compraData.proveedor_contacto}`, 120, proveedorY);
+                proveedorY += 5;
+            }
+            
+            // Dirección del proveedor
+            if (compraData.proveedor_direccion) {
+                doc.text(`Dirección: ${compraData.proveedor_direccion}`, 120, proveedorY);
+                proveedorY += 5;
+            }
+            
+            // Teléfono del proveedor
             if (compraData.proveedor_telefono) {
-                doc.text(`Tel: ${compraData.proveedor_telefono}`, 120, proveedorY);
+                doc.text(`Teléfono: ${compraData.proveedor_telefono}`, 120, proveedorY);
                 proveedorY += 5;
             }
+            
+            // Email del proveedor
             if (compraData.proveedor_email) {
                 doc.text(`Email: ${compraData.proveedor_email}`, 120, proveedorY);
                 proveedorY += 5;
             }
-            if (compraData.proveedor_direccion) {
-                doc.text(`Dirección: ${compraData.proveedor_direccion}`, 120, proveedorY);
-            }
-            
             // Línea separadora
             doc.setDrawColor(200, 200, 200);
             doc.line(20, 90, 190, 90);
             
+            // ========== INFORMACIÓN ADICIONAL ==========
+            doc.setFontSize(10);
+            doc.setTextColor(0, 0, 0);
+            
+            let infoY = 95;
+            
+            // Método de pago
+            doc.text(`Método de pago: ${compraData.tipo_pago || 'No especificado'}`, 20, infoY);
+            
+            // Usuario que registró
+            if (compraData.usuario_nombre) {
+                doc.text(`Registrado por: ${compraData.usuario_nombre}`, 120, infoY);
+            }
+            
+            infoY += 10;
+            
+            // Observaciones
+            if (compraData.observaciones) {
+                doc.setFont(undefined, 'bold');
+                doc.text('Observaciones:', 20, infoY);
+                doc.setFont(undefined, 'normal');
+                
+                // Dividir observaciones largas en múltiples líneas
+                const observaciones = compraData.observaciones;
+                const maxLength = 80;
+                let observacionesY = infoY + 5;
+                
+                for (let i = 0; i < observaciones.length; i += maxLength) {
+                    const chunk = observaciones.substring(i, i + maxLength);
+                    doc.text(chunk, 25, observacionesY);
+                    observacionesY += 5;
+                }
+                
+                infoY = observacionesY + 5;
+            } else {
+                infoY += 5;
+            }
+            
             // ========== TABLA DE PRODUCTOS ==========
-            let y = 100;
+            let y = infoY + 10;
             
             // Encabezado de la tabla
             doc.setFontSize(11);
@@ -286,42 +305,48 @@ class PdfService {
             doc.setFillColor(0, 102, 51);
             doc.rect(20, y - 5, 170, 7, 'F');
             
-            doc.text('Producto', 25, y);
-            doc.text('Proveedor', 80, y);
-            doc.text('Cant.', 140, y);
-            doc.text('Precio', 150, y);
+            doc.text('No.', 25, y);
+            doc.text('Producto', 35, y);
+            doc.text('Descripción', 80, y);
+            doc.text('Cant.', 130, y);
+            doc.text('P. Unit.', 145, y);
             doc.text('Subtotal', 170, y);
             
             y += 10;
             doc.setTextColor(0, 0, 0);
             
             // Productos
+            const productos = compraData.productos || [];
             let totalGeneral = 0;
-            compraData.productos.forEach((producto, index) => {
+            
+            productos.forEach((producto, index) => {
                 // Fondo alternado para mejor lectura
                 if (index % 2 === 0) {
                     doc.setFillColor(240, 248, 240);
                     doc.rect(20, y - 2, 170, 7, 'F');
                 }
                 
-                doc.setFontSize(10);
+                doc.setFontSize(9);
+                
+                // Número
+                doc.text(`${index + 1}.`, 25, y);
                 
                 // Nombre del producto
                 const nombre = producto.nombre || 'Producto';
-                const nombreCorto = nombre.length > 25 ? nombre.substring(0, 22) + '...' : nombre;
-                doc.text(`${index + 1}. ${nombreCorto}`, 25, y);
+                const nombreCorto = nombre.length > 30 ? nombre.substring(0, 27) + '...' : nombre;
+                doc.text(nombreCorto, 35, y);
                 
-                // Proveedor
-                const proveedor = producto.proveedor || compraData.proveedor_nombre || 'Proveedor';
-                const proveedorCorto = proveedor.length > 20 ? proveedor.substring(0, 17) + '...' : proveedor;
-                doc.text(proveedorCorto, 80, y);
+                // Descripción (abreviada)
+                const descripcion = producto.descripcion || '';
+                const descCorto = descripcion.length > 25 ? descripcion.substring(0, 22) + '...' : descripcion;
+                doc.text(descCorto, 80, y);
                 
                 // Cantidad
-                doc.text(producto.cantidad.toString(), 140, y);
+                doc.text(producto.cantidad.toString(), 130, y);
                 
                 // Precio unitario
                 const precioUnitario = producto.precio_unitario || producto.precio || 0;
-                doc.text(`Bs ${precioUnitario.toFixed(2)}`, 150, y);
+                doc.text(`Bs ${precioUnitario.toFixed(2)}`, 145, y);
                 
                 // Subtotal
                 const subtotal = producto.subtotal || (producto.cantidad * precioUnitario);
@@ -331,63 +356,69 @@ class PdfService {
                 y += 7;
                 
                 // Si hay muchos productos, crear nueva página
-                if (y > 250 && index < compraData.productos.length - 1) {
+                if (y > 250 && index < productos.length - 1) {
                     doc.addPage();
                     y = 20;
+                    
+                    // Repetir encabezado en nueva página
+                    doc.setFontSize(11);
+                    doc.setTextColor(255, 255, 255);
+                    doc.setFillColor(0, 102, 51);
+                    doc.rect(20, y - 5, 170, 7, 'F');
+                    
+                    doc.text('No.', 25, y);
+                    doc.text('Producto', 35, y);
+                    doc.text('Descripción', 80, y);
+                    doc.text('Cant.', 130, y);
+                    doc.text('P. Unit.', 145, y);
+                    doc.text('Subtotal', 170, y);
+                    
+                    y += 10;
+                    doc.setTextColor(0, 0, 0);
+                    doc.setFontSize(9);
                 }
             });
             
-            // Línea de total
+            // ========== TOTALES Y RESUMEN ==========
+            y += 10;
             doc.setDrawColor(0, 0, 0);
             doc.setLineWidth(0.5);
-            doc.line(140, y + 5, 190, y + 5);
+            doc.line(140, y, 190, y);
             
-            // ========== INFORMACIÓN ADICIONAL ==========
-            doc.setFontSize(10);
+            doc.setFontSize(11);
+            doc.setFont(undefined, 'bold');
+            doc.text('RESUMEN:', 20, y + 10);
             doc.setFont(undefined, 'normal');
             
-            // Método de pago
-            doc.text(`Método de pago: ${compraData.tipo_pago || 'No especificado'}`, 20, y + 15);
+            doc.text(`Total productos: ${productos.length}`, 25, y + 20);
+            doc.text(`Total unidades: ${productos.reduce((sum, p) => sum + (p.cantidad || 0), 0)}`, 25, y + 25);
             
-            // Observaciones
-            if (compraData.observaciones) {
-                doc.text(`Observaciones: ${compraData.observaciones}`, 20, y + 20);
-                y += 10;
-            }
-            
-            // Estado
-            doc.text(`Estado: ${compraData.estado || 'Completada'}`, 20, y + 25);
-            
-            // ========== TOTALES ==========
-            doc.setFontSize(12);
             doc.setFont(undefined, 'bold');
-            doc.text('TOTAL COMPRA:', 140, y + 35);
-            doc.text(`Bs ${(compraData.total || totalGeneral).toFixed(2)}`, 170, y + 35);
+            doc.text('TOTAL COMPRA:', 140, y + 20);
+            doc.text(`Bs ${(compraData.total || totalGeneral).toFixed(2)}`, 170, y + 20);
             
             // ========== PIE DE PÁGINA ==========
             doc.setFontSize(8);
             doc.setTextColor(100, 100, 100);
-            doc.text('Comprobante de ingreso de inventario', 105, y + 50, { align: 'center' });
-            doc.text('Documento interno de la empresa', 105, y + 55, { align: 'center' });
+            
+            const pieY = y + 40;
+            doc.text('Comprobante de ingreso de inventario', 105, pieY, { align: 'center' });
+            doc.text('Documento interno de la empresa', 105, pieY + 5, { align: 'center' });
+            doc.text(`Generado el: ${new Date().toLocaleString()}`, 105, pieY + 10, { align: 'center' });
             
             // Firmas
-            const firmaY = y + 70;
+            const firmaY = pieY + 25;
             doc.setDrawColor(0);
             doc.setLineWidth(0.5);
-            doc.line(30, firmaY, 80, firmaY);
-            doc.line(120, firmaY, 170, firmaY);
+            doc.line(30, firmaY, 80, firmaY); // Firma responsable de compras
+            doc.line(120, firmaY, 170, firmaY); // Firma proveedor
             
             doc.setFontSize(8);
             doc.text('Responsable de Compras', 55, firmaY + 5, { align: 'center' });
-            doc.text('Recibido por', 145, firmaY + 5, { align: 'center' });
-            
-            // Usuario que registró
-            if (compraData.usuario_nombre) {
-                doc.text(`Registrado por: ${compraData.usuario_nombre}`, 20, firmaY + 15);
-            }
+            doc.text('Proveedor / Representante', 145, firmaY + 5, { align: 'center' });
             
             // ========== GUARDAR PDF ==========
-            const fileName = `compra-${compraData.id_compra || Date.now()}.pdf`;
+            const fileName = `compra-${compraData.id_compra || Date.now()}-${compraData.proveedor_nombre || 'proveedor'}.pdf`;
             doc.save(fileName);
             
             console.log("✅ PDF de compra generado:", fileName);

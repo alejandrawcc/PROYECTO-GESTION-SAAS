@@ -34,6 +34,7 @@ const GestionCompras = () => {
     const [modalDetallesOpen, setModalDetallesOpen] = useState(false);
     const [compraSeleccionada, setCompraSeleccionada] = useState(null);
     const [detallesCompra, setDetallesCompra] = useState(null);
+    const [cargandoPDF, setCargandoPDF] = useState(false);
     
     // Estados para formularios
     const [nuevaCompra, setNuevaCompra] = useState({
@@ -332,59 +333,66 @@ const GestionCompras = () => {
     };
 
     // Descargar PDF de compra
-    const handleGenerarPDF = async () => {
-        if (!compraSeleccionada) return;
-        
+    const handleGenerarPDF = async (compra) => {
         try {
-            setCargandoPDF(true);
+            console.log('📊 Generando PDF para compra:', compra);
             
-            const response = await api.get(`/compras/${compraSeleccionada.id_compra}/reporte`);
-            const datosCompra = response.data;
+            // PRIMERO: Obtener datos completos del endpoint de reporte
+            try {
+                const response = await api.get(`/compras/${compra.id_compra}/reporte`);
+                const datosCompra = response.data;
+                
+                console.log('✅ Datos completos obtenidos del servidor:', datosCompra);
+                
+                // Generar PDF con datos completos
+                PdfService.generarComprobanteCompra(datosCompra);
+                
+                notifications.show({
+                    title: '✅ PDF generado',
+                    message: `Comprobante de compra #${compra.id_compra} descargado`,
+                    color: 'green'
+                });
+                
+            } catch (apiError) {
+                console.warn('⚠️ No se pudieron obtener datos completos:', apiError);
+                
+                // SEGUNDO: Si falla, usar datos básicos pero intentar incluir proveedor
+                const datosBasicos = {
+                    id_compra: compra.id_compra,
+                    fecha: compra.fecha,
+                    total: parseFloat(compra.total || 0),
+                    numero_factura: compra.numero_factura || 'Sin número',
+                    tipo_pago: compra.tipo_pago || 'No especificado',
+                    estado: compra.estado || 'Completada',
+                    proveedor_nombre: compra.proveedor_nombre || 'Proveedor no especificado',
+                    proveedor_nit: compra.proveedor_nit || 'Sin NIT',
+                    proveedor_telefono: compra.proveedor_telefono || 'Sin teléfono',
+                    productos: [
+                        {
+                            nombre: `Compra #${compra.id_compra}`,
+                            cantidad: compra.total_productos || 1,
+                            precio_unitario: parseFloat(compra.total || 0) / (compra.total_productos || 1),
+                            subtotal: parseFloat(compra.total || 0)
+                        }
+                    ]
+                };
+                
+                PdfService.generarComprobanteCompra(datosBasicos);
+                
+                notifications.show({
+                    title: '⚠️ PDF generado con datos básicos',
+                    message: 'Algunos datos del proveedor podrían faltar',
+                    color: 'orange'
+                });
+            }
             
-            console.log('Datos de compra para PDF:', datosCompra);
-            
-            // **VALIDAR Y FORMATEAR LOS DATOS ANTES DE ENVIAR AL PDF**
-            const datosFormateados = {
-                ...datosCompra,
-                productos: datosCompra.productos.map(producto => ({
-                    ...producto,
-                    // Asegurar que cantidad sea número
-                    cantidad: typeof producto.cantidad === 'string' ? 
-                        parseInt(producto.cantidad) : producto.cantidad,
-                    // Asegurar que precio_unitario sea número con 2 decimales
-                    precio_unitario: typeof producto.precio_unitario === 'string' ?
-                        parseFloat(parseFloat(producto.precio_unitario).toFixed(2)) :
-                        typeof producto.precio_unitario === 'number' ?
-                        parseFloat(producto.precio_unitario.toFixed(2)) : 0,
-                    // Asegurar que subtotal sea número con 2 decimales
-                    subtotal: typeof producto.subtotal === 'string' ?
-                        parseFloat(parseFloat(producto.subtotal).toFixed(2)) :
-                        typeof producto.subtotal === 'number' ?
-                        parseFloat(producto.subtotal.toFixed(2)) : 0
-                }))
-            };
-            
-            console.log('Datos formateados para PDF:', datosFormateados);
-            
-            // Generar PDF con datos formateados
-            await PdfService.generarComprobanteCompra(datosFormateados);
-            
-            notifications.show({
-                title: 'PDF Generado',
-                message: 'El comprobante se está descargando',
-                color: 'green'
-            });
         } catch (error) {
-            console.error('❌ Error generando PDF:', error);
-            console.error('Datos que causaron el error:', error.response?.data);
-            
+            console.error('❌ Error crítico generando PDF:', error);
             notifications.show({
                 title: 'Error',
-                message: `No se pudo generar el PDF: ${error.message}`,
+                message: 'No se pudo generar el comprobante',
                 color: 'red'
             });
-        } finally {
-            setCargandoPDF(false);
         }
     };
     
@@ -617,7 +625,7 @@ const GestionCompras = () => {
                                                 <ActionIcon 
                                                     variant="subtle" 
                                                     color="gray"
-                                                    onClick={() => handleGenerarPDF(compra.id_compra)}
+                                                    onClick={() => handleGenerarPDF(compra)}
                                                 >
                                                     <IconDownload size={16} />
                                                 </ActionIcon>
