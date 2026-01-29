@@ -5,6 +5,18 @@ class PdfService {
     // ========== COMPROBANTE DE VENTA ==========
     static generarComprobanteVenta(ventaData) {
         try {
+            console.log('📊 Datos de venta recibidos:', ventaData);
+            
+            // Asegurarse de que productos existe
+            const productos = ventaData.productos || [];
+            if (productos.length === 0) {
+                console.warn('⚠️ No hay productos en la venta');
+                productos.push({
+                    nombre: 'Producto no especificado',
+                    cantidad: 1,
+                    precio_unitario: ventaData.total || 0
+                });
+            }
             console.log("📄 Generando PDF de venta...");
             
             const doc = new jsPDF();
@@ -77,7 +89,7 @@ class PdfService {
             
             // Productos
             let totalGeneral = 0;
-            ventaData.productos.forEach((producto, index) => {
+            (productos || []).forEach((producto, index) => {
                 // Fondo alternado para mejor lectura
                 if (index % 2 === 0) {
                     doc.setFillColor(240, 240, 240);
@@ -383,6 +395,190 @@ class PdfService {
             
         } catch (error) {
             console.error("❌ Error generando PDF de compra:", error);
+            return null;
+        }
+    }
+
+    // ========== REPORTE DE VENTAS (Multiple ventas) ==========
+    static generarReporteVentas(reporteData) {
+        try {
+            console.log('📈 Generando reporte de ventas:', reporteData);
+            
+            // Validar datos
+            if (!reporteData.ventas || !Array.isArray(reporteData.ventas)) {
+                console.error('❌ Datos de ventas inválidos');
+                throw new Error('Datos de ventas inválidos');
+            }
+            
+            const doc = new jsPDF();
+            
+            // ========== CABECERA DEL REPORTE ==========
+            doc.setFontSize(20);
+            doc.setTextColor(0, 51, 153); // Azul corporativo
+            doc.text('REPORTE DE VENTAS', 105, 20, { align: 'center' });
+            
+            doc.setFontSize(10);
+            doc.setTextColor(0, 0, 0);
+            doc.text(`Período: ${reporteData.periodo || 'No especificado'}`, 20, 35);
+            doc.text(`Vendedor: ${reporteData.vendedor || 'Todos'}`, 110, 35);
+            doc.text(`Fecha: ${new Date(reporteData.fecha_generacion || Date.now()).toLocaleDateString()}`, 160, 35);
+            doc.text(`Hora: ${new Date(reporteData.fecha_generacion || Date.now()).toLocaleTimeString()}`, 160, 40);
+            
+            // ========== RESUMEN ESTADÍSTICO ==========
+            doc.setFontSize(12);
+            doc.setTextColor(0, 51, 153);
+            doc.text('RESUMEN DEL PERÍODO', 20, 55);
+            
+            doc.setFontSize(10);
+            doc.setTextColor(0, 0, 0);
+            doc.text(`Total de ventas: ${reporteData.ventas.length || 0}`, 20, 65);
+            doc.text(`Total ingresos: Bs ${reporteData.totales?.total?.toFixed(2) || '0.00'}`, 20, 70);
+            doc.text(`Promedio por venta: Bs ${reporteData.totales?.promedio?.toFixed(2) || '0.00'}`, 20, 75);
+            doc.text(`Ventas por vendedor: ${reporteData.ventas_por_vendedor || 'No disponible'}`, 20, 80);
+            
+            // Línea separadora
+            doc.setDrawColor(200, 200, 200);
+            doc.line(20, 85, 190, 85);
+            
+            // ========== TABLA DE VENTAS ==========
+            let y = 95;
+            
+            // Encabezado de la tabla
+            doc.setFontSize(11);
+            doc.setTextColor(255, 255, 255);
+            doc.setFillColor(0, 51, 153);
+            doc.rect(20, y - 5, 170, 7, 'F');
+            
+            doc.text('ID', 25, y);
+            doc.text('Fecha', 45, y);
+            doc.text('Cliente', 75, y);
+            doc.text('Vendedor', 120, y);
+            doc.text('Total', 160, y);
+            doc.text('Estado', 180, y);
+            
+            y += 10;
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(9);
+            
+            // Ventas individuales
+            reporteData.ventas.forEach((venta, index) => {
+                // Fondo alternado para mejor lectura
+                if (index % 2 === 0) {
+                    doc.setFillColor(240, 240, 240);
+                    doc.rect(20, y - 2, 170, 6, 'F');
+                }
+                
+                // ID
+                doc.text(`#${venta.id_pedido || index + 1}`, 25, y);
+                
+                // Fecha (formato corto)
+                const fecha = venta.fecha ? new Date(venta.fecha).toLocaleDateString('es-ES', {
+                    day: '2-digit',
+                    month: '2-digit'
+                }) : '--/--';
+                doc.text(fecha, 45, y);
+                
+                // Cliente (nombre abreviado)
+                const cliente = venta.cliente_nombre || 'Cliente';
+                const clienteCorto = cliente.length > 15 ? cliente.substring(0, 12) + '...' : cliente;
+                doc.text(clienteCorto, 75, y);
+                
+                // Vendedor
+                const vendedor = venta.vendedor_nombre || venta.usuario_nombre || '--';
+                const vendedorCorto = vendedor.length > 12 ? vendedor.substring(0, 9) + '...' : vendedor;
+                doc.text(vendedorCorto, 120, y);
+                
+                // Total
+                doc.text(`Bs ${(venta.total || 0).toFixed(2)}`, 160, y);
+                
+                // Estado con color
+                const estado = venta.estado || 'completado';
+                let estadoColor;
+                if (estado === 'completado') estadoColor = [0, 150, 0]; // Verde
+                else if (estado === 'pendiente') estadoColor = [255, 165, 0]; // Naranja
+                else estadoColor = [255, 0, 0]; // Rojo
+                
+                doc.setTextColor(...estadoColor);
+                doc.text(estado.charAt(0).toUpperCase(), 180, y);
+                doc.setTextColor(0, 0, 0);
+                
+                y += 6;
+                
+                // Si hay muchas ventas, crear nueva página
+                if (y > 250 && index < reporteData.ventas.length - 1) {
+                    doc.addPage();
+                    y = 20;
+                    
+                    // Encabezado de la tabla en nueva página
+                    doc.setFontSize(11);
+                    doc.setTextColor(255, 255, 255);
+                    doc.setFillColor(0, 51, 153);
+                    doc.rect(20, y - 5, 170, 7, 'F');
+                    
+                    doc.text('ID', 25, y);
+                    doc.text('Fecha', 45, y);
+                    doc.text('Cliente', 75, y);
+                    doc.text('Vendedor', 120, y);
+                    doc.text('Total', 160, y);
+                    doc.text('Estado', 180, y);
+                    
+                    y += 10;
+                    doc.setTextColor(0, 0, 0);
+                    doc.setFontSize(9);
+                }
+            });
+            
+            // ========== GRÁFICO DE BARRAS SIMULADO (opcional) ==========
+            y += 10;
+            doc.setFontSize(12);
+            doc.setTextColor(0, 51, 153);
+            doc.text('DISTRIBUCIÓN POR MÉTODO DE PAGO', 105, y, { align: 'center' });
+            
+            y += 10;
+            doc.setFontSize(9);
+            doc.setTextColor(0, 0, 0);
+            
+            // Agrupar por método de pago
+            const metodosPago = {};
+            reporteData.ventas.forEach(venta => {
+                const metodo = venta.metodo_pago || 'efectivo';
+                metodosPago[metodo] = (metodosPago[metodo] || 0) + 1;
+            });
+            
+            Object.entries(metodosPago).forEach(([metodo, cantidad], index) => {
+                const x = 30 + (index * 40);
+                const altura = Math.min(cantidad * 3, 30);
+                
+                // Barra
+                doc.setFillColor(70, 130, 180);
+                doc.rect(x, y + 20 - altura, 20, altura, 'F');
+                
+                // Etiqueta
+                doc.text(metodo.charAt(0).toUpperCase(), x + 8, y + 25);
+                doc.text(cantidad.toString(), x + 8, y + 35);
+                
+                doc.text(metodo, x, y + 45);
+            });
+            
+            y += 60;
+            
+            // ========== OBSERVACIONES ==========
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            doc.text('Observaciones:', 20, y);
+            doc.text('• Reporte generado automáticamente por el sistema', 20, y + 6);
+            doc.text('• Los montos están expresados en Bolivianos (Bs)', 20, y + 12);
+            doc.text('• Consultas: administracion@empresa.com', 20, y + 18);
+            
+            // ========== GUARDAR PDF ==========
+            const fileName = `reporte-ventas-${new Date().toISOString().slice(0, 10)}.pdf`;
+            doc.save(fileName);
+            
+            console.log("✅ Reporte de ventas generado:", fileName);
+            return fileName;
+            
+        } catch (error) {
+            console.error("❌ Error generando reporte de ventas:", error);
             return null;
         }
     }

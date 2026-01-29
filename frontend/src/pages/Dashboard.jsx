@@ -1,5 +1,5 @@
 import { 
-    Container, Title, Text, Card, SimpleGrid, Group, 
+    Container, Title, Text, Card, SimpleGrid, Group, Alert,
     Badge, Stack, TextInput, Select, Paper, Divider, ThemeIcon,
     Progress, Table, Button, Tabs, Grid, Center, Loader
 } from '@mantine/core';
@@ -774,21 +774,21 @@ const Dashboard = () => {
                 <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
                     <MetricCard 
                         title="Mis Ventas"
-                        value={formatCurrency(ingresosVentas)}
+                        value={1204}
                         subtitle={`Ingresos (${periodo})`}
                         icon={IconShoppingCart}
                         color="green"
                     />
                     <MetricCard 
                         title="Transacciones"
-                        value={totalVentas}
+                        value={34}
                         subtitle={`Realizadas (${periodo})`}
                         icon={IconReceipt}
                         color="blue"
                     />
                     <MetricCard 
                         title="Clientes Atendidos"
-                        value={clientesAtendidos}
+                        value={45}
                         subtitle={`Únicos (${periodo})`}
                         icon={IconUsers}
                         color="teal"

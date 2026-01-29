@@ -51,6 +51,7 @@ export function MainLayout({ children }) {
     if (['administrador'].includes(user?.rol)) {
       items.push({ label: 'Proveedores', icon: IconTruck, path: '/gestion-proveedores' });
       items.push({ label: 'Compras', icon: IconShoppingBag, path: '/gestion-compras' });
+      items.push({ label: 'Ventas', icon: IconShoppingCart, path: '/gestion-ventas' });
     }
 
     return items;

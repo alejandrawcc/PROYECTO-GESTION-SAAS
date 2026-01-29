@@ -32,7 +32,7 @@ const GestionVentas = () => {
         periodo: 'mes',
         fechaInicio: null,
         fechaFin: null,
-        vendedorId: null,
+        vendedorId: undefined, // Cambia null por undefined
         estado: 'todos',
         metodoPago: 'todos'
     });
@@ -45,11 +45,25 @@ const GestionVentas = () => {
 
     // Cargar datos iniciales
     const cargarDatos = async () => {
+        let url = `/carrito/ventas?periodo=${filtros.periodo}`;
+        if (filtros.vendedorId && filtros.vendedorId !== 'todos') {
+            url += `&vendedor_id=${filtros.vendedorId}`;
+        }
+        
+        console.log('🌐 URL solicitada:', url);
+        console.log('🔑 Token de usuario:', user?.token ? 'Presente' : 'Ausente');
+        
+        const response = await api.get(url);
+        console.log('✅ Respuesta:', response);
+        
+        setVentas(response.data || []);
+        setPagination(prev => ({ ...prev, total: response.data?.length || 0 }));
+
         setLoading(true);
         try {
             // Cargar ventas con filtros
             let url = `/carrito/ventas?periodo=${filtros.periodo}`;
-            if (filtros.vendedorId) {
+            if (filtros.vendedorId && filtros.vendedorId !== 'todos') {
                 url += `&vendedor_id=${filtros.vendedorId}`;
             }
             
@@ -114,17 +128,30 @@ const GestionVentas = () => {
     // Generar reporte
     const generarReporte = async () => {
         try {
+            // Preparar datos para el reporte
             const datosReporte = {
                 periodo: filtros.periodo,
                 vendedor: filtros.vendedorId 
-                    ? vendedores.find(v => v.id_usuario === filtros.vendedorId)?.nombre
+                    ? vendedores.find(v => v.id_usuario === parseInt(filtros.vendedorId))?.nombre
                     : 'Todos',
                 fecha_generacion: new Date().toISOString(),
-                ventas: ventas,
-                totales: totales
+                ventas: ventas.map(v => ({
+                    id_pedido: v.id_pedido,
+                    fecha: v.fecha,
+                    cliente_nombre: v.cliente_nombre,
+                    vendedor_nombre: v.vendedor_nombre,
+                    total: parseFloat(v.total || 0),
+                    metodo_pago: v.metodo_pago,
+                    estado: v.estado
+                })),
+                totales: {
+                    total: totales.total,
+                    promedio: totales.promedio
+                }
             };
             
-            await PdfService.generarReporteVentas(datosReporte);
+            // Llamar a la función del PdfService
+            PdfService.generarReporteVentas(datosReporte);
             
             notifications.show({
                 title: 'Reporte generado',
@@ -263,17 +290,18 @@ const GestionVentas = () => {
                         <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
                             <Select
                                 label="Vendedor"
-                                value={filtros.vendedorId}
-                                onChange={(val) => setFiltros({...filtros, vendedorId: val})}
+                                value={filtros.vendedorId || null} // Usa null en lugar de undefined
+                                onChange={(val) => setFiltros({...filtros, vendedorId: val || undefined})}
                                 data={[
-                                    { value: null, label: 'Todos los vendedores' },
+                                    { value: 'todos', label: 'Todos los vendedores' }, // Cambia null por string
                                     ...vendedores.map(v => ({
-                                        value: v.id_usuario,
+                                        value: String(v.id_usuario), // Asegura que sea string
                                         label: `${v.nombre} ${v.apellido}`
                                     }))
                                 ]}
                                 clearable
                                 leftSection={<IconUser size={16} />}
+                                placeholder="Selecciona vendedor"
                             />
                         </Grid.Col>
                     )}
@@ -400,12 +428,24 @@ const GestionVentas = () => {
                                                                     variant="subtle" 
                                                                     color="green"
                                                                     onClick={() => {
-                                                                        PdfService.generarComprobanteVenta({
+                                                                        // Asegurar que tenemos datos básicos
+                                                                        const datosVenta = {
                                                                             pedido_id: venta.id_pedido,
+                                                                            fecha: venta.fecha,
                                                                             cliente_nombre: venta.cliente_nombre,
-                                                                            total: venta.total,
-                                                                            fecha: venta.fecha
-                                                                        });
+                                                                            total: parseFloat(venta.total || 0),
+                                                                            metodo_pago: venta.metodo_pago || 'efectivo',
+                                                                            productos: [
+                                                                                {
+                                                                                    nombre: `Venta #${venta.id_pedido}`,
+                                                                                    cantidad: venta.total_items || 1,
+                                                                                    precio_unitario: parseFloat(venta.total || 0) / (venta.total_items || 1),
+                                                                                    subtotal: parseFloat(venta.total || 0)
+                                                                                }
+                                                                            ]
+                                                                        };
+                                                                        
+                                                                        PdfService.generarComprobanteVenta(datosVenta);
                                                                     }}
                                                                 >
                                                                     <IconReceipt size={16} />

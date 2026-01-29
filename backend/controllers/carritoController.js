@@ -434,7 +434,7 @@ exports.vaciarCarrito = (req, res) => {
 // Obtener ventas (para vendedor: solo sus ventas, para admins: todas de la microempresa)
 exports.getVentas = async (req, res) => {
     try {
-        const { periodo } = req.query; // 'hoy', 'semana', 'mes', 'anio', or undefined
+        const { periodo } = req.query;
         const { rol, microempresa_id, id } = req.user;
 
         let filtroFecha = '';
@@ -448,7 +448,7 @@ exports.getVentas = async (req, res) => {
             case 'mes':
                 filtroFecha = 'AND MONTH(p.fecha) = MONTH(CURDATE()) AND YEAR(p.fecha) = YEAR(CURDATE())';
                 break;
-            case 'anio':
+            case 'año':
                 filtroFecha = 'AND YEAR(p.fecha) = YEAR(CURDATE())';
                 break;
             default:

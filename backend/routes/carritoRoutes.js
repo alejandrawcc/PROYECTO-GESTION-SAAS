@@ -1,8 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const carritoController = require('../controllers/carritoController');
+const { verifyToken } = require('../middleware/auth'); 
 
-// Rutas del carrito
+// Ruta para obtener ventas (PROTEGIDA)
+router.get('/ventas', verifyToken, carritoController.getVentas);
 router.post('/agregar', carritoController.agregarAlCarrito);
 router.get('/:carritoId', carritoController.verCarrito);
 router.delete('/:carritoId/producto/:productoId', carritoController.eliminarDelCarrito);
